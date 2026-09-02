@@ -136,6 +136,75 @@
 *   **Method**: `GET`
 *   **Response**: 文件流 (Binary Stream)
 
+## 2.5 网盘接口 (Drive) — 均需登录
+
+### 2.5.1 查询存储配额
+*   **URL**: `/api/drive/quota`
+*   **Method**: `GET`
+*   **Headers**: `Authorization: Bearer <token>`
+*   **Response**:
+    ```json
+    {
+        "quota": 1073741824,
+        "used": 0
+    }
+    ```
+
+### 2.5.2 列出文件夹
+*   **URL**: `/api/drive/folders`
+*   **Method**: `GET`
+*   **Headers**: `Authorization: Bearer <token>`
+*   **Query Params**:
+    *   `parent_id`: 父文件夹 ID（可选，缺省表示根目录）
+*   **Response**:
+    ```json
+    [
+        {
+            "id": 1,
+            "owner_id": 1,
+            "parent_id": null,
+            "name": "课件",
+            "created_at": "2026-09-02T21:05:14Z"
+        }
+    ]
+    ```
+
+### 2.5.3 创建文件夹
+*   **URL**: `/api/drive/folders`
+*   **Method**: `POST`
+*   **Headers**: `Authorization: Bearer <token>`
+*   **Body**:
+    ```json
+    {
+        "name": "课件",
+        "parent_id": null
+    }
+    ```
+*   **Response**: `201 Created`，返回文件夹对象
+
+### 2.5.4 重命名 / 移动文件夹
+*   **URL**: `/api/drive/folders/{id}`
+*   **Method**: `PATCH`
+*   **Headers**: `Authorization: Bearer <token>`
+*   **Body**（两个字段可单独或同时提供）:
+    ```json
+    {
+        "name": "新名称",
+        "parent_id": 3
+    }
+    ```
+    *   `name`: 重命名
+    *   `parent_id`: 移动到目标文件夹；`null` 表示移回根目录
+    *   移动到自身或其子孙文件夹会返回 `400`
+*   **Response**: `{"message": "updated"}`
+
+### 2.5.5 删除文件夹
+*   **URL**: `/api/drive/folders/{id}`
+*   **Method**: `DELETE`
+*   **Headers**: `Authorization: Bearer <token>`
+*   **说明**: 软删除（连同所有子孙文件夹一并进入回收站）
+*   **Response**: `204 No Content`
+
 ## 3. 管理员接口 (Admin)
 
 ### 3.1 审核资源
@@ -185,6 +254,16 @@
 | :--- | :--- | :--- | :---: |
 | **GET** | `/api/me` | 获取当前用户信息 | Yes |
 | **PATCH** | `/api/me` | 更新当前用户资料 | Yes |
+
+### 网盘接口 (Drive)
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :---: |
+| **GET** | `/api/drive/quota` | 查询配额与已用空间 | Yes |
+| **GET** | `/api/drive/folders` | 列出文件夹 (`?parent_id=`) | Yes |
+| **POST** | `/api/drive/folders` | 创建文件夹 | Yes |
+| **PATCH** | `/api/drive/folders/{id}` | 重命名 / 移动文件夹 | Yes |
+| **DELETE** | `/api/drive/folders/{id}` | 删除文件夹（软删除，级联子孙） | Yes |
 
 ### 管理员接口 (Admin)
 

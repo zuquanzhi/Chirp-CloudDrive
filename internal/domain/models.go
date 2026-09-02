@@ -20,6 +20,9 @@ const (
 	RoleAdmin UserRole = "ADMIN"
 )
 
+// DefaultQuota is the per-user storage quota (1GB) assigned at signup.
+const DefaultQuota int64 = 1 << 30
+
 // User represents a registered user
 type User struct {
 	ID          int64     `json:"id"`
@@ -34,6 +37,8 @@ type User struct {
 	Birthdate   string    `json:"birthdate,omitempty"`
 	Address     string    `json:"address,omitempty"`
 	Gender      string    `json:"gender,omitempty"`
+	Quota       int64     `json:"quota"` // total storage quota in bytes
+	Used        int64     `json:"used"`  // used storage in bytes
 }
 
 // Resource represents an uploaded file metadata
@@ -51,6 +56,16 @@ type Resource struct {
 	Subject      string         `json:"subject,omitempty"`
 	Type         string         `json:"type,omitempty"`
 	URL          string         `json:"url,omitempty"` // Public URL for the file
+}
+
+// Folder represents a directory in a user's drive
+type Folder struct {
+	ID        int64      `json:"id"`
+	OwnerID   int64      `json:"owner_id"`
+	ParentID  *int64     `json:"parent_id"` // NULL means drive root
+	Name      string     `json:"name"`
+	CreatedAt time.Time  `json:"created_at"`
+	DeletedAt *time.Time `json:"deleted_at,omitempty"` // soft delete (trash)
 }
 
 // Notification represents a system message
@@ -77,6 +92,17 @@ type ResourceRepository interface {
 	GetByID(ctx context.Context, id int64) (*Resource, error)
 	UpdateStatus(ctx context.Context, id int64, status ResourceStatus) error
 	GetByHash(ctx context.Context, hash string) ([]Resource, error)
+}
+
+// FolderRepository defines methods for folder persistence
+type FolderRepository interface {
+	Create(ctx context.Context, folder *Folder) error
+	GetByID(ctx context.Context, id int64) (*Folder, error)
+	ListByParent(ctx context.Context, ownerID int64, parentID *int64) ([]Folder, error)
+	Update(ctx context.Context, folder *Folder) error
+	SoftDelete(ctx context.Context, id int64) error
+	// ListDescendantIDs returns ids of all folders under id (exclusive), for trash cascade and move-cycle checks
+	ListDescendantIDs(ctx context.Context, id int64) ([]int64, error)
 }
 
 // NotificationRepository defines methods for notifications

@@ -38,9 +38,11 @@ func main() {
 	// Init Repositories
 	userRepo := sqlite.NewUserRepository(db)
 	resourceRepo := sqlite.NewResourceRepository(db)
+	folderRepo := sqlite.NewFolderRepository(db)
 
 	// Init Services
 	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret)
+	folderSvc := service.NewFolderService(folderRepo, userRepo)
 
 	storage, err := service.NewLocalStorage(cfg.UploadDir)
 	if err != nil {
@@ -51,6 +53,7 @@ func main() {
 	// Init Handlers
 	authHandler := handler.NewAuthHandler(authSvc)
 	resourceHandler := handler.NewResourceHandler(resourceSvc)
+	driveHandler := handler.NewDriveHandler(folderSvc)
 
 	// Setup Router
 	r := mux.NewRouter()
@@ -74,6 +77,13 @@ func main() {
 
 	api.HandleFunc("/me", authHandler.Me).Methods("GET")
 	api.HandleFunc("/me", authHandler.UpdateMe).Methods("PATCH")
+
+	// Drive Routes (folders & quota)
+	api.HandleFunc("/drive/quota", driveHandler.GetQuota).Methods("GET")
+	api.HandleFunc("/drive/folders", driveHandler.ListFolders).Methods("GET")
+	api.HandleFunc("/drive/folders", driveHandler.CreateFolder).Methods("POST")
+	api.HandleFunc("/drive/folders/{id}", driveHandler.UpdateFolder).Methods("PATCH")
+	api.HandleFunc("/drive/folders/{id}", driveHandler.DeleteFolder).Methods("DELETE")
 
 	// Admin Routes (Review, etc.)
 	admin := r.PathPrefix("/api/admin").Subrouter()
