@@ -40,61 +40,7 @@
     }
     ```
 
-### 1.3 发送短信验证码
-*   **URL**: `/auth/send-code`
-*   **Method**: `POST`
-*   **Body**:
-    ```json
-    {
-        "phone": "11234567890",
-        "purpose": "signup" // 或 "login"
-    }
-    ```
-*   **Response**:
-    ```json
-    {
-        "message": "code sent"
-    }
-    ```
-
-### 1.4 手机号注册
-*   **URL**: `/signup/phone`
-*   **Method**: `POST`
-*   **Body**:
-    ```json
-    {
-        "name": "User Name",
-        "phone": "11234567890",
-        "code": "123456",
-        "password": "password123"
-    }
-    ```
-*   **Response**:
-    ```json
-    {
-        "id": 1,
-        "phone": "11234567890"
-    }
-    ```
-
-### 1.5 手机号登录
-*   **URL**: `/login/phone`
-*   **Method**: `POST`
-*   **Body**:
-    ```json
-    {
-        "phone": "11234567890",
-        "code": "123456"
-    }
-    ```
-*   **Response**:
-    ```json
-    {
-        "token": "eyJhbGciOiJIUzI1Ni..."
-    }
-    ```
-
-### 1.6 获取当前用户信息
+### 1.3 获取当前用户信息
 *   **URL**: `/api/me`
 *   **Method**: `GET`
 *   **Headers**: `Authorization: Bearer <token>`
@@ -109,7 +55,7 @@
     }
     ```
 
-### 1.7 更新当前用户信息
+### 1.4 更新当前用户信息
 *   **URL**: `/api/me`
 *   **Method**: `PATCH`
 *   **Headers**: `Authorization: Bearer <token>`
@@ -162,7 +108,7 @@
         "status": "PENDING",
         "file_hash": "...",
         "owner_id": 123, // 若已登录
-        "url": "https://bucket.oss-cn-region.aliyuncs.com/uuid.ext"
+        "url": "/uploads/uuid.ext"
     }
     ```
 
@@ -179,7 +125,7 @@
             "title": "Lecture Notes",
             "description": "...",
             "created_at": "...",
-            "url": "https://bucket.oss-cn-region.aliyuncs.com/uuid.ext"
+            "url": "/uploads/uuid.ext"
         }
     ]
     ```
@@ -238,6 +184,7 @@
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :---: |
 | **GET** | `/api/me` | 获取当前用户信息 | Yes |
+| **PATCH** | `/api/me` | 更新当前用户资料 | Yes |
 
 ### 管理员接口 (Admin)
 

@@ -66,16 +66,8 @@ type Notification struct {
 type UserRepository interface {
 	Create(ctx context.Context, user *User) error
 	GetByEmail(ctx context.Context, email string) (*User, error)
-	GetByPhoneNumber(ctx context.Context, phone string) (*User, error)
 	GetByID(ctx context.Context, id int64) (*User, error)
 	UpdateProfile(ctx context.Context, user *User) error
-}
-
-// VerificationCodeRepository defines methods for OTP
-type VerificationCodeRepository interface {
-	Save(ctx context.Context, phone, code, purpose string, duration time.Duration) error
-	Get(ctx context.Context, phone, purpose string) (string, error)
-	Delete(ctx context.Context, phone, purpose string) error
 }
 
 // ResourceRepository defines methods for resource persistence

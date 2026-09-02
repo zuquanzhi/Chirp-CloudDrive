@@ -1,11 +1,11 @@
 # Chirp (知了) - Backend Service
 
-[![Go Version](https://img.shields.io/badge/Go-1.20+-00ADD8?style=flat&logo=go)](https://golang.org/)
+[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **Chirp** 是一个面向大学生的资料共享平台后端服务。本项目采用 Golang 开发，旨在提供高效、安全的文件存储与元数据管理服务。
 
-当前版本为 MVP（Minimum Viable Product），实现了核心的用户认证与资源管理功能。
+当前版本为**纯本地部署版**：SQLite 单文件数据库 + 本地文件存储，零云服务依赖，开箱即用。
 
 ## 架构设计
 
@@ -15,7 +15,7 @@
 
 *   **Domain Layer (`internal/domain`)**: 核心业务实体与接口定义。不依赖任何外部库。
 *   **Service Layer (`internal/service`)**: 具体的业务逻辑实现（如认证流程、文件处理）。依赖于 Domain 层接口。
-*   **Repository Layer (`internal/repository`)**: 数据持久化适配器。实现了 Domain 层定义的 Repository 接口。当前提供 MySQL 与 SQLite 两种实现，可通过配置切换。
+*   **Repository Layer (`internal/repository`)**: 数据持久化适配器。实现了 Domain 层定义的 Repository 接口（SQLite）。
 *   **Handler Layer (`internal/handler`)**: 接口适配层。负责处理 HTTP 请求，解析参数并调用 Service 层。
 *   **Config (`internal/config`)**: 集中式配置管理。
 
@@ -36,7 +36,7 @@
 │   └── service/              # 业务逻辑层
 ├── pkg/                      # 公共库 (可被外部项目复用)
 │   └── util/                 # 工具函数 (如 Password Hashing)
-├── uploads/                  # 本地文件存储目录 (开发环境)
+├── uploads/                  # 本地文件存储目录
 ├── go.mod                    # 依赖管理
 └── README.md                 # 项目文档
 ```
@@ -45,9 +45,8 @@
 
 ### 前置要求
 
-*   **Go**: 1.20 或更高版本
-*   **GCC**: Windows 环境下运行 SQLite 驱动需要安装 GCC (推荐 [MinGW-w64](https://www.mingw-w64.org/))。
-*   **PowerShell**: 推荐使用 PowerShell 进行脚本运行。
+*   **Go**: 1.21 或更高版本
+*   无需 GCC：SQLite 驱动使用纯 Go 实现的 `modernc.org/sqlite`，Windows 上开箱即用。
 
 ## API 文档 (API Documentation)
 
@@ -55,8 +54,8 @@
 
 ### 接口概览
 
-*   **用户认证**: 注册、登录、短信验证码、获取用户信息
-*   **资源管理**: 上传、下载、搜索资源
+*   **用户认证**: 邮箱注册、邮箱登录、获取/更新用户信息
+*   **资源管理**: 上传（支持匿名）、下载、搜索资源
 *   **管理员**: 资源审核、查重
 
 ## 本地开发环境搭建
@@ -68,65 +67,53 @@
     cd Chirp
     ```
 
-2.  **配置（推荐 config.json）**
+2.  **配置（可选）**
 
-        复制 `config.example.json` 为 `config.json` 并按需修改，程序启动时默认读取当前目录的 `config.json`。也可通过环境变量 `CONFIG_FILE` 指定路径。
+    程序启动时默认读取当前目录的 `config.json`，不存在时使用内置默认值。也可通过环境变量 `CONFIG_FILE` 指定路径。
 
-        `config.json` 示例字段说明：
-        ```json
-        {
-            "port": "9527",
-            "dbDriver": "mysql",            // mysql | sqlite
-            "dbDSN": "chirp:test12345@tcp(127.0.0.1:3306)/chirp?parseTime=true&loc=Local",
-            "sqlitePath": "chirp.db",
-            "jwtSecret": "dev_secret_key",
-            "uploadDir": "uploads",
-            "storageBackend": "local",      // local | oss
-            "aliyunEndpoint": "oss-cn-hangzhou.aliyuncs.com",
-            "aliyunAccessKeyID": "your-access-key",
-            "aliyunAccessKeySecret": "your-access-secret",
-            "aliyunBucketName": "chirp-oss",
-            "aliyunSignName": "your-sms-sign",
-            "aliyunTemplateCode": "SMS_xxx"
-        }
-        ```
+    复制 `config.example.json` 为 `config.json` 并按需修改：
 
-        环境变量仍可覆盖同名配置（优先级：环境变量 > config.json > 默认值），便于在生产中通过环境覆盖敏感信息。
+    ```json
+    {
+        "port": "9527",
+        "sqlitePath": "chirp.db",
+        "jwtSecret": "dev_secret_key",
+        "uploadDir": "uploads"
+    }
+    ```
+
+    环境变量可覆盖同名配置（优先级：环境变量 > config.json > 默认值）。
 
 3.  **安装依赖**
 
-    ```powershell
+    ```bash
     go mod tidy
     ```
 
 4.  **启动服务**
 
     使用提供的脚本一键启动：
-    ```powershell
-    .\scripts\run_server.ps1
+    ```bash
+    ./scripts/run_server.sh
     ```
     或者手动运行：
-    ```powershell
+    ```bash
     go run ./cmd/server/main.go
     ```
 
 5.  **运行测试**
 
     使用测试脚本验证 API：
-    ```powershell
-    .\scripts\test_api.ps1
+    ```bash
+    ./scripts/test_api.sh
     ```
-
-## API 文档
-
-详细的 API 接口文档请参考 [docs/API.md](docs/API.md)。
 
 ## 技术栈
 
 *   **Language**: Go (Golang)
 *   **Web Framework**: Gorilla Mux
-*   **Database**: MySQL / SQLite
-*   **Storage**: Local Filesystem / Aliyun OSS
+*   **Database**: SQLite (`modernc.org/sqlite`，纯 Go，无 CGO)
+*   **Storage**: Local Filesystem
 *   **Auth**: JWT (JSON Web Tokens)
 *   **Password Hashing**: bcrypt
 
@@ -142,8 +129,7 @@
 *   [x] 资源上传与下载 (Local Storage)
 *   [x] 架构重构 (Clean Architecture)
 *   [x] MVP 1.0 功能 (匿名上传/搜索/审核/查重)
-*   [x] 接入 MySQL 数据库
-*   [x] 接入阿里云 OSS 对象存储
+*   [x] 纯本地化裁剪（SQLite + 本地存储，移除云服务依赖）
 *   [ ] Docker 容器化部署支持
 *   [ ] 单元测试覆盖
 

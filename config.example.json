@@ -1,15 +1,6 @@
 {
   "port": "9527",
-  "dbDriver": "mysql",
-  "dbDSN": "chirp:test12345@tcp(127.0.0.1:3306)/chirp?parseTime=true&loc=Local",
   "sqlitePath": "chirp.db",
   "jwtSecret": "dev_secret_key",
-  "uploadDir": "uploads",
-  "storageBackend": "local",
-  "aliyunEndpoint": "oss-cn-hangzhou.aliyuncs.com",
-  "aliyunAccessKeyID": "your-access-key",
-  "aliyunAccessKeySecret": "your-access-secret",
-  "aliyunBucketName": "chirp-oss",
-  "aliyunSignName": "your-sms-sign",
-  "aliyunTemplateCode": "SMS_xxx"
+  "uploadDir": "uploads"
 }

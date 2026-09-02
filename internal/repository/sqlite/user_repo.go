@@ -42,20 +42,6 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*domain.
 	return u, nil
 }
 
-func (r *userRepository) GetByPhoneNumber(ctx context.Context, phone string) (*domain.User, error) {
-	row := r.db.QueryRowContext(ctx, `SELECT id,name,email,password,created_at,COALESCE(phone_number,''),COALESCE(school,''),COALESCE(student_id,''),COALESCE(birthdate,''),COALESCE(address,''),COALESCE(gender,'') FROM users WHERE phone_number = ?`, phone)
-	u := &domain.User{}
-	var created string
-	if err := row.Scan(&u.ID, &u.Name, &u.Email, &u.Password, &created, &u.PhoneNumber, &u.School, &u.StudentID, &u.Birthdate, &u.Address, &u.Gender); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	u.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", created)
-	return u, nil
-}
-
 func (r *userRepository) GetByID(ctx context.Context, id int64) (*domain.User, error) {
 	row := r.db.QueryRowContext(ctx, `SELECT id,name,email,password,created_at,COALESCE(phone_number,''),COALESCE(school,''),COALESCE(student_id,''),COALESCE(birthdate,''),COALESCE(address,''),COALESCE(gender,'') FROM users WHERE id = ?`, id)
 	u := &domain.User{}

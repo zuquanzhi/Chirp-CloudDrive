@@ -2,7 +2,6 @@ package http
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 
 	"github.com/zuquanzhi/Chirp/backend/internal/domain"
@@ -56,75 +55,6 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	token, err := h.svc.Login(r.Context(), req.Email, req.Password)
 	if err != nil {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
-		return
-	}
-
-	json.NewEncoder(w).Encode(map[string]any{"token": token})
-}
-
-func (h *AuthHandler) SendCode(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Phone   string `json:"phone"`
-		Purpose string `json:"purpose"` // "signup" or "login"
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
-		return
-	}
-	if req.Phone == "" || req.Purpose == "" {
-		http.Error(w, "phone and purpose required", http.StatusBadRequest)
-		return
-	}
-
-	if err := h.svc.SendCode(r.Context(), req.Phone, req.Purpose); err != nil {
-		log.Printf("send code failed: phone=%s purpose=%s err=%v", req.Phone, req.Purpose, err)
-		http.Error(w, "server error", http.StatusInternalServerError)
-		return
-	}
-
-	// Production: Do NOT return code
-	json.NewEncoder(w).Encode(map[string]string{"message": "code sent"})
-}
-
-func (h *AuthHandler) SignupPhone(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name     string `json:"name"`
-		Phone    string `json:"phone"`
-		Code     string `json:"code"`
-		Password string `json:"password"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
-		return
-	}
-	if req.Phone == "" || req.Code == "" || req.Password == "" {
-		http.Error(w, "phone, code and password required", http.StatusBadRequest)
-		return
-	}
-
-	u, err := h.svc.SignupWithPhone(r.Context(), req.Name, req.Phone, req.Code, req.Password)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]any{"id": u.ID, "phone": u.PhoneNumber})
-}
-
-func (h *AuthHandler) LoginPhone(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Phone string `json:"phone"`
-		Code  string `json:"code"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
-		return
-	}
-
-	token, err := h.svc.LoginWithPhone(r.Context(), req.Phone, req.Code)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 

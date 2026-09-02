@@ -3,11 +3,11 @@ package sqlite
 import (
 	"database/sql"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 func InitDB(dbPath string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, err
 	}
@@ -46,15 +46,6 @@ func InitDB(dbPath string) (*sql.DB, error) {
 		FOREIGN KEY(owner_id) REFERENCES users(id)
 	);`
 
-	createCodes := `CREATE TABLE IF NOT EXISTS verification_codes (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		phone_number TEXT,
-		code TEXT,
-		purpose TEXT,
-		expires_at DATETIME,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);`
-
 	createNotifications := `CREATE TABLE IF NOT EXISTS notifications (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		user_id INTEGER,
@@ -71,9 +62,6 @@ func InitDB(dbPath string) (*sql.DB, error) {
 		return nil, err
 	}
 	if _, err := db.Exec(createNotifications); err != nil {
-		return nil, err
-	}
-	if _, err := db.Exec(createCodes); err != nil {
 		return nil, err
 	}
 

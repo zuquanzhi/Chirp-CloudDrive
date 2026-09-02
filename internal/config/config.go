@@ -6,20 +6,13 @@ import (
 	"os"
 )
 
+// Config holds all local-only configuration for Chirp.
+// Priority: environment variable > config.json > default value.
 type Config struct {
-	Port                  string
-	DBDriver              string
-	DBDSN                 string
-	SQLitePath            string
-	JWTSecret             string
-	UploadDir             string
-	StorageBackend        string
-	AliyunEndpoint        string
-	AliyunAccessKeyID     string
-	AliyunAccessKeySecret string
-	AliyunBucketName      string
-	AliyunSignName        string
-	AliyunTemplateCode    string
+	Port       string
+	SQLitePath string
+	JWTSecret  string
+	UploadDir  string
 }
 
 func Load() *Config {
@@ -42,18 +35,9 @@ func Load() *Config {
 
 	// Resolve with priority: env > file > default
 	cfg.Port = firstNonEmpty(os.Getenv("PORT"), fileCfgValue(fileCfg, func(c *Config) string { return c.Port }), "9527")
-	cfg.DBDriver = firstNonEmpty(os.Getenv("DB_DRIVER"), fileCfgValue(fileCfg, func(c *Config) string { return c.DBDriver }), "mysql")
-	cfg.DBDSN = firstNonEmpty(os.Getenv("DB_DSN"), fileCfgValue(fileCfg, func(c *Config) string { return c.DBDSN }), "chirp:test12345@tcp(127.0.0.1:3306)/chirp?parseTime=true&loc=Local")
 	cfg.SQLitePath = firstNonEmpty(os.Getenv("SQLITE_PATH"), fileCfgValue(fileCfg, func(c *Config) string { return c.SQLitePath }), "chirp.db")
 	cfg.JWTSecret = firstNonEmpty(os.Getenv("JWT_SECRET"), fileCfgValue(fileCfg, func(c *Config) string { return c.JWTSecret }), "default_secret")
 	cfg.UploadDir = firstNonEmpty(os.Getenv("UPLOAD_DIR"), fileCfgValue(fileCfg, func(c *Config) string { return c.UploadDir }), "uploads")
-	cfg.StorageBackend = firstNonEmpty(os.Getenv("STORAGE_BACKEND"), fileCfgValue(fileCfg, func(c *Config) string { return c.StorageBackend }), "local")
-	cfg.AliyunEndpoint = firstNonEmpty(os.Getenv("ALIYUN_OSS_ENDPOINT"), fileCfgValue(fileCfg, func(c *Config) string { return c.AliyunEndpoint }), "")
-	cfg.AliyunAccessKeyID = firstNonEmpty(os.Getenv("ALIYUN_ACCESS_KEY"), fileCfgValue(fileCfg, func(c *Config) string { return c.AliyunAccessKeyID }), "")
-	cfg.AliyunAccessKeySecret = firstNonEmpty(os.Getenv("ALIYUN_ACCESS_SECRET"), fileCfgValue(fileCfg, func(c *Config) string { return c.AliyunAccessKeySecret }), "")
-	cfg.AliyunBucketName = firstNonEmpty(os.Getenv("ALIYUN_OSS_BUCKET"), fileCfgValue(fileCfg, func(c *Config) string { return c.AliyunBucketName }), "")
-	cfg.AliyunSignName = firstNonEmpty(os.Getenv("ALIYUN_SIGN_NAME"), fileCfgValue(fileCfg, func(c *Config) string { return c.AliyunSignName }), "")
-	cfg.AliyunTemplateCode = firstNonEmpty(os.Getenv("ALIYUN_TEMPLATE_CODE"), fileCfgValue(fileCfg, func(c *Config) string { return c.AliyunTemplateCode }), "")
 
 	return cfg
 }
