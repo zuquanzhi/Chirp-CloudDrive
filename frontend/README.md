@@ -35,6 +35,7 @@ npm run build      # 输出 dist/
 frontend/
 ├── src/
 │   ├── lib/api.ts          # API 客户端（fetch 封装，自动携带 JWT）
+│   ├── lib/format.ts       # 展示格式化（文件大小、时间）
 │   ├── hooks/use-auth.tsx  # 认证上下文（登录态管理）
 │   ├── components/
 │   │   ├── AppLayout.tsx   # 整体布局（侧边导航 + 配额条）
@@ -44,6 +45,18 @@ frontend/
 │   ├── App.tsx             # 路由与守卫
 │   └── main.tsx
 └── vite.config.ts          # dev 代理配置
+```
+
+## 交互
+
+- 拖拽上传：将文件拖入网盘主页列表区即可上传到当前目录
+- 拖拽移动：拖动文件/文件夹行到目标文件夹行（或面包屑节点）完成移动
+
+## 质量检查
+
+```bash
+npm run lint       # ESLint（components/ui 为 shadcn 生成代码，其提示可忽略）
+npm run build      # 类型检查 + 产物构建
 ```
 
 > 后端 API 契约见 `docs/API.md` 与 `docs/NETDISK_DESIGN.md`。

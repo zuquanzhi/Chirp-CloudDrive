@@ -1,6 +1,13 @@
 # Chirp CloudDrive · 网盘系统课设设计方案
 
-> 本文档是纯设计文档，不包含实现代码。目标：在现有 Chirp 后端（Go + SQLite + 本地存储）基础上，演进为一个功能完整的网盘系统，作为课程设计交付。
+> 本文档是**设计稿**（写于实施前），保留作为设计过程的记录。最终交付与设计稿的偏差如下：
+>
+> - **已按设计实现**：存储配额（1GB）、文件夹层级管理、文件上传/下载/重命名/移动、回收站（软删除/还原/彻底删除）、个人中心。
+> - **范围裁剪（明确不做）**：秒传（含 `ref_count` 引用计数）与文件分享（`shares` 表及公开路由）在课设范围控制中被砍掉，数据库未建 `shares` 表、`resources` 表无 `ref_count` 字段；彻底删除直接物理清理并回收配额。
+> - **前端**：由"预留目录"落地为 React 19 + Vite + Tailwind + shadcn/ui 工程（`frontend/`），含拖拽上传与拖拽移动。
+> - **结构演进**：`internal/domain/models.go` 拆分为按实体四文件；回收站逻辑独立为 `trash_service.go`；drive handler 按 folder/file/trash 拆为三文件。
+>
+> 以 `docs/API.md` 和 `docs/ARCHITECTURE.md` 为当前实现的准绳。
 
 ## 1. 项目定位
 

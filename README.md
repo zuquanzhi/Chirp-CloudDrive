@@ -1,6 +1,6 @@
 # Chirp (知了) - CloudDrive 网盘系统
 
-[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org/)
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **Chirp CloudDrive** 是一个面向大学生的网盘系统（课程设计）：Go 后端 + React 前端，支持文件夹管理、文件上传下载、回收站与存储配额。
@@ -13,8 +13,8 @@
 
 ### 分层说明
 
-*   **Domain Layer (`internal/domain`)**: 核心业务实体与接口定义。不依赖任何外部库。
-*   **Service Layer (`internal/service`)**: 具体的业务逻辑实现（如认证流程、文件处理）。依赖于 Domain 层接口。
+*   **Domain Layer (`internal/domain`)**: 核心业务实体与接口定义，按实体拆分（`user.go` / `resource.go` / `folder.go` / `notification.go`）。不依赖任何外部库。
+*   **Service Layer (`internal/service`)**: 具体的业务逻辑实现：`auth_service`（认证/配额）、`resource_service`（文件）、`folder_service`（文件夹）、`trash_service`（回收站编排）。依赖于 Domain 层接口。
 *   **Repository Layer (`internal/repository`)**: 数据持久化适配器。实现了 Domain 层定义的 Repository 接口（SQLite）。
 *   **Handler Layer (`internal/handler`)**: 接口适配层。负责处理 HTTP 请求，解析参数并调用 Service 层。
 *   **Config (`internal/config`)**: 集中式配置管理。
@@ -28,12 +28,12 @@
 │       └── main.go           # 应用程序入口，负责依赖注入与服务启动
 ├── internal/
 │   ├── config/               # 配置加载与管理
-│   ├── domain/               # 领域模型 (User, Resource) 与 接口定义
+│   ├── domain/               # 领域模型与仓库接口（user/resource/folder/notification 四文件）
 │   ├── handler/              # HTTP 处理器 (REST API)
-│   │   └── http/             # 具体 HTTP Handler 实现与中间件
+│   │   └── http/             # 具体 HTTP Handler 实现与中间件（drive 按 folder/file/trash 拆分）
 │   ├── repository/           # 数据访问层实现
 │   │   └── sqlite/           # SQLite 实现
-│   └── service/              # 业务逻辑层
+│   └── service/              # 业务逻辑层（含 *_test.go 单元测试）
 ├── pkg/                      # 公共库 (可被外部项目复用)
 │   └── util/                 # 工具函数 (如 Password Hashing)
 ├── frontend/                 # React 前端 (Vite + TS + Tailwind + shadcn/ui)
@@ -46,7 +46,8 @@
 
 ### 前置要求
 
-*   **Go**: 1.21 或更高版本
+*   **Go**: 1.25 或更高版本
+*   **Node.js**: 18+（仅前端开发需要）
 *   无需 GCC：SQLite 驱动使用纯 Go 实现的 `modernc.org/sqlite`，Windows 上开箱即用。
 
 ## API 文档 (API Documentation)
@@ -65,8 +66,8 @@
 1.  **克隆仓库**
 
     ```bash
-    git clone https://github.com/zuquanzhi/Chirp.git
-    cd Chirp
+    git clone https://github.com/zuquanzhi/Chirp-CloudDrive.git
+    cd Chirp-CloudDrive
     ```
 
 2.  **配置（可选）**
@@ -105,7 +106,16 @@
 
 5.  **运行测试**
 
-    使用测试脚本验证 API：
+    Service 层单元测试（内存 fake 实现仓库/存储接口，零外部依赖）：
+
+    ```bash
+    go test ./internal/service/ -v
+    ```
+
+    覆盖：文件夹移动防环（自身/子级/后代）、配额记账（超限拒绝/恰好占满/上传记账）、回收站级联（软删/还原/孤儿重挂根目录/彻底删除配额回收）共 18 个用例。
+
+    端到端 API 冒烟测试（需服务已启动）：
+
     ```bash
     ./scripts/test_api.sh
     ```
@@ -141,8 +151,8 @@
 *   [x] 网盘 M1：存储配额 + 文件夹管理
 *   [x] 网盘 M2：文件管理 + 回收站（还原/彻底删除/配额回收）
 *   [x] React 前端（网盘主页/回收站/个人中心，拖拽上传与拖拽移动）
+*   [x] Service 层单元测试（18 用例：移动防环/配额记账/回收站级联）
 *   [ ] Docker 容器化部署支持
-*   [ ] 单元测试覆盖
 
 ---
 © 2025 Chirp Team. All Rights Reserved.

@@ -3,7 +3,7 @@
 本文档概述当前 Chirp 后端的整体架构、关键模块与运行配置，便于新同学快速上手与排障。
 
 ## 总览
-- 语言/框架：Go 1.21+，Gorilla Mux。
+- 语言/框架：Go 1.25+，Gorilla Mux。
 - 架构风格：分层（Domain/Service/Repository/Handler），依赖倒置。
 - 运行模式：**纯本地运行**。SQLite 单文件数据库 + 本地文件存储，无任何云服务依赖。
 - SQLite 驱动：`modernc.org/sqlite`（纯 Go 实现，**无需 GCC/CGO**，Windows 开箱即用）。
@@ -14,7 +14,7 @@
 cmd/server/main.go      # 入口与依赖注入
 internal/config        # 配置加载
 internal/domain        # 领域模型与仓库接口
-internal/service       # 业务逻辑（Auth/Resource/LocalStorage）
+internal/service       # 业务逻辑（Auth/Resource/Folder/Trash + Storage，含单元测试）
 internal/repository    # 数据访问实现（sqlite）
 internal/handler/http  # HTTP 路由与中间件
 pkg/logger             # 日志初始化（stdout+logs/）
@@ -55,7 +55,17 @@ logs/                  # 运行日志（已 .gitignore）
 
 ## 运行与脚本
 - 启动：`./scripts/run_server.sh`（默认使用 `config.json`，可设 `CONFIG_FILE`）。
-- 测试：`./scripts/test_api.sh`：MVP 基础流程（注册/登录/匿名上传/列表）。
+- 单元测试：`go test ./internal/service/ -v`（18 个用例，见下节）。
+- API 冒烟：`./scripts/test_api.sh`：MVP 基础流程（注册/登录/匿名上传/列表），需服务已启动。
+
+## 单元测试
+`internal/service/` 下四个测试文件，使用内存 fake 实现 Domain 仓库接口与 `FileStorage`（`testutil_test.go`），零外部依赖、可离线运行：
+
+| 测试文件 | 覆盖点 |
+| :--- | :--- |
+| `folder_service_test.go` | 建夹/重命名/列表权限；移动防环（自身、直接子级、深层后代） |
+| `resource_service_test.go` | 配额三连：超限拒绝（不落盘不记账）、恰好占满边界、上传成功记账；文件重命名/移动/删除的越权拦截 |
+| `trash_service_test.go` | 级联软删、回收站顶层项过滤、子树还原、孤儿文件/文件夹重挂根目录、彻底删除（物理清理 + 配额精确回收） |
 
 ## 存储
 - 文件写入 `uploadDir`，数据库记录 SHA256 哈希用于查重。
