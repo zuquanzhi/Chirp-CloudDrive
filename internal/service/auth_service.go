@@ -76,6 +76,18 @@ func (s *AuthService) GetUserByID(ctx context.Context, id int64) (*domain.User, 
 	return s.userRepo.GetByID(ctx, id)
 }
 
+// GetQuota returns the user's quota and used bytes.
+func (s *AuthService) GetQuota(ctx context.Context, userID int64) (quota, used int64, err error) {
+	u, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return 0, 0, err
+	}
+	if u == nil {
+		return 0, 0, errors.New("user not found")
+	}
+	return u.Quota, u.Used, nil
+}
+
 func (s *AuthService) UpdateProfile(ctx context.Context, u *domain.User) (*domain.User, error) {
 	// Ensure user exists
 	existing, err := s.userRepo.GetByID(ctx, u.ID)

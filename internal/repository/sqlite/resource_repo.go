@@ -141,7 +141,7 @@ func (r *resourceRepository) query(ctx context.Context, query string, args ...in
 	}
 	defer rows.Close()
 
-	var list []domain.Resource
+	list := make([]domain.Resource, 0)
 	for rows.Next() {
 		res, err := scanResource(rows)
 		if err != nil {

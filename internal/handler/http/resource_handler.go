@@ -48,7 +48,7 @@ func (h *ResourceHandler) Upload(w http.ResponseWriter, r *http.Request) {
 			resourceType := r.FormValue("type")
 			res, err := h.svc.Upload(r.Context(), ownerID, title, desc, subject, resourceType, f, fh)
 			if err != nil {
-				fmt.Printf("[Error] Upload failed: %v\n", err) // Add logging
+				fmt.Printf("[Error] Upload failed: %v\n", err)                              // Add logging
 				http.Error(w, "server error: "+err.Error(), http.StatusInternalServerError) // Return error details for debugging
 				return
 			}
@@ -121,7 +121,7 @@ func (h *ResourceHandler) Download(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", res.OriginalName))
 	w.Header().Set("Content-Type", "application/octet-stream")
-	// Since we have a reader, we can't use ServeContent easily for range requests without Seek, 
+	// Since we have a reader, we can't use ServeContent easily for range requests without Seek,
 	// but io.Copy is fine for simple downloads.
 	io.Copy(w, reader)
 }

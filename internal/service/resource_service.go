@@ -43,7 +43,7 @@ func (s *ResourceService) Upload(ctx context.Context, ownerID *int64, title, des
 	id := uuid.New().String()
 	ext := filepath.Ext(header.Filename)
 	storedName := id + ext
-	
+
 	// Use Storage Interface
 	savedName, size, err := s.storage.Save(ctx, file, storedName)
 	if err != nil {
@@ -95,7 +95,7 @@ func (s *ResourceService) GetDownloadPath(ctx context.Context, id int64) (*domai
 	}
 	// Note: This method signature implies returning a local path, which might not work for OSS.
 	// Ideally, we should return a ReadCloser or a URL.
-	// For now, let's keep it compatible with LocalStorage logic in Handler, 
+	// For now, let's keep it compatible with LocalStorage logic in Handler,
 	// but in a real OSS scenario, the Handler should use s.storage.Get() or s.storage.GetPublicURL().
 	// We will refactor the Handler to use the Service's GetContent method instead.
 	return res, res.Filename, nil
@@ -110,14 +110,13 @@ func (s *ResourceService) GetFileContent(ctx context.Context, id int64) (*domain
 	if res == nil {
 		return nil, nil, nil
 	}
-	
+
 	reader, err := s.storage.Get(ctx, res.Filename)
 	if err != nil {
 		return nil, nil, err
 	}
 	return res, reader, nil
 }
-
 
 func (s *ResourceService) Review(ctx context.Context, id int64, status domain.ResourceStatus) error {
 	return s.repo.UpdateStatus(ctx, id, status)
@@ -231,71 +230,6 @@ func (s *ResourceService) SoftDeleteFile(ctx context.Context, ownerID, fileID in
 		return err
 	}
 	return s.repo.SoftDelete(ctx, fileID)
-}
-
-// ListTrashFiles returns deleted files that are not inside a deleted folder.
-func (s *ResourceService) ListTrashFiles(ctx context.Context, ownerID int64) ([]domain.Resource, error) {
-	deleted, err := s.repo.ListDeleted(ctx, ownerID)
-	if err != nil {
-		return nil, err
-	}
-	deletedFolders, err := s.folderRepo.ListDeleted(ctx, ownerID)
-	if err != nil {
-		return nil, err
-	}
-	deletedFolderIDs := make(map[int64]bool, len(deletedFolders))
-	for _, f := range deletedFolders {
-		deletedFolderIDs[f.ID] = true
-	}
-	var out []domain.Resource
-	for _, res := range deleted {
-		if res.FolderID != nil && deletedFolderIDs[*res.FolderID] {
-			continue // shown together with its folder
-		}
-		res.URL = s.storage.GetPublicURL(res.Filename)
-		out = append(out, res)
-	}
-	return out, nil
-}
-
-// RestoreFile clears the trash mark; files whose folder is still deleted go back to root.
-func (s *ResourceService) RestoreFile(ctx context.Context, ownerID, fileID int64) error {
-	res, err := s.repo.GetByID(ctx, fileID)
-	if err != nil {
-		return err
-	}
-	if res == nil || res.OwnerID == nil || *res.OwnerID != ownerID || res.DeletedAt == nil {
-		return errors.New("file not found in trash")
-	}
-	folderID := res.FolderID
-	if folderID != nil {
-		f, err := s.folderRepo.GetByID(ctx, *folderID)
-		if err != nil {
-			return err
-		}
-		if f == nil || f.DeletedAt != nil {
-			folderID = nil
-		}
-	}
-	return s.repo.Restore(ctx, fileID, folderID)
-}
-
-// HardDeleteFile permanently removes a file: physical object, row, and quota accounting.
-func (s *ResourceService) HardDeleteFile(ctx context.Context, ownerID, fileID int64) error {
-	res, err := s.repo.GetByID(ctx, fileID)
-	if err != nil {
-		return err
-	}
-	if res == nil || res.OwnerID == nil || *res.OwnerID != ownerID || res.DeletedAt == nil {
-		return errors.New("file not found in trash")
-	}
-	if err := s.storage.Delete(ctx, res.Filename); err != nil {
-		return err
-	}
-	if err := s.repo.HardDelete(ctx, fileID); err != nil {
-		return err
-	}
-	return s.userRepo.AddUsed(ctx, ownerID, -res.Size)
 }
 
 // DownloadDriveFile returns file content after ownership check.

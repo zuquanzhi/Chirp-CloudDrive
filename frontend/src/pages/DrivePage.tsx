@@ -23,7 +23,6 @@ import {
   deleteFile,
   deleteFolder,
   downloadFile,
-  formatSize,
   listItems,
   moveFile,
   moveFolder,
@@ -31,6 +30,7 @@ import {
   renameFolder,
   uploadFile,
 } from '@/lib/api'
+import { formatSize, formatTime } from '@/lib/format'
 import type { DriveFile, Folder } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -517,8 +517,9 @@ export default function DrivePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Move dialog */}
+      {/* Move dialog (key forces fresh state for each target) */}
       <MoveDialog
+        key={moveTarget ? `${moveTarget.kind}-${moveTarget.item.id}` : 'none'}
         target={moveTarget}
         currentFolderId={currentFolderId}
         onClose={() => setMoveTarget(null)}
@@ -590,11 +591,6 @@ function MoveDialog({
 
   useEffect(() => {
     if (!target) return
-    setCrumbs([{ id: null, name: '全部文件' }])
-  }, [target])
-
-  useEffect(() => {
-    if (!target) return
     listItems(browseId).then((data) => setFolders(data.folders)).catch(() => setFolders([]))
   }, [browseId, target])
 
@@ -662,10 +658,4 @@ function MoveDialog({
       </DialogContent>
     </Dialog>
   )
-}
-
-function formatTime(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleString('zh-CN', { hour12: false })
 }

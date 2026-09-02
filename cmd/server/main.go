@@ -48,12 +48,13 @@ func main() {
 		log.Fatalf("failed to init storage: %v", err)
 	}
 	resourceSvc := service.NewResourceService(resourceRepo, storage, userRepo, folderRepo)
-	folderSvc := service.NewFolderService(folderRepo, resourceRepo, userRepo, storage)
+	folderSvc := service.NewFolderService(folderRepo)
+	trashSvc := service.NewTrashService(folderRepo, resourceRepo, userRepo, storage)
 
 	// Init Handlers
 	authHandler := handler.NewAuthHandler(authSvc)
 	resourceHandler := handler.NewResourceHandler(resourceSvc)
-	driveHandler := handler.NewDriveHandler(folderSvc, resourceSvc)
+	driveHandler := handler.NewDriveHandler(folderSvc, resourceSvc, trashSvc, authSvc)
 
 	// Setup Router
 	r := mux.NewRouter()

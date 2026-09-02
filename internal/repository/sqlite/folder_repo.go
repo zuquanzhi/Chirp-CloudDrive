@@ -48,7 +48,7 @@ func (r *folderRepository) ListByParent(ctx context.Context, ownerID int64, pare
 	}
 	defer rows.Close()
 
-	var folders []domain.Folder
+	folders := make([]domain.Folder, 0)
 	for rows.Next() {
 		f, err := scanFolder(rows)
 		if err != nil {
@@ -99,7 +99,7 @@ func (r *folderRepository) ListDeleted(ctx context.Context, ownerID int64) ([]do
 	}
 	defer rows.Close()
 
-	var folders []domain.Folder
+	folders := make([]domain.Folder, 0)
 	for rows.Next() {
 		f, err := scanFolder(rows)
 		if err != nil {

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { useOutletContext } from 'react-router'
 import { File as FileIcon, Folder as FolderIcon, RotateCcw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatSize, hardDeleteTrashItem, listTrash, restoreTrashItem } from '@/lib/api'
+import { hardDeleteTrashItem, listTrash, restoreTrashItem } from '@/lib/api'
+import { formatSize, formatTime } from '@/lib/format'
 import type { DriveFile, Folder } from '@/types'
 import {
   AlertDialog,
@@ -54,7 +55,8 @@ export default function TrashPage() {
   }, [])
 
   useEffect(() => {
-    refresh()
+    const timer = setTimeout(refresh, 0)
+    return () => clearTimeout(timer)
   }, [refresh])
 
   const handleRestore = async (row: TrashRow) => {
@@ -118,9 +120,7 @@ export default function TrashPage() {
                   </div>
                 </TableCell>
                 <TableCell className="text-slate-500">{row.size == null ? '—' : formatSize(row.size)}</TableCell>
-                <TableCell className="text-slate-500">
-                  {row.deletedAt ? new Date(row.deletedAt).toLocaleString('zh-CN', { hour12: false }) : '—'}
-                </TableCell>
+                <TableCell className="text-slate-500">{formatTime(row.deletedAt)}</TableCell>
                 <TableCell className="text-right space-x-2">
                   <Button variant="outline" size="sm" onClick={() => handleRestore(row)}>
                     <RotateCcw className="h-4 w-4 mr-1" />

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { formatSize, getQuota, updateMe } from '@/lib/api'
+import { getQuota, updateMe } from '@/lib/api'
+import { formatSize } from '@/lib/format'
 import { useAuth } from '@/hooks/use-auth'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'

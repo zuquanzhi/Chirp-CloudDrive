@@ -38,14 +38,16 @@ logs/                  # 运行日志（已 .gitignore）
 环境变量可覆盖同名字段，便于生产注入敏感信息（如 JWT 密钥）。
 
 ## 各层职责
-- **Domain (`internal/domain`)**：领域模型（User/Resource/Notification*预留*）与仓库接口。无外部依赖。
-- **Repository (`internal/repository/sqlite`)**：SQLite 实现，建表在 `sqlite/db.go`（包含 `users/resources/notifications`）。
+- **Domain (`internal/domain`)**：按实体拆分：`user.go`（User+配额）、`resource.go`（文件元数据）、`folder.go`（文件夹）、`notification.go`（预留），各含对应仓库接口。无外部依赖。
+- **Repository (`internal/repository/sqlite`)**：SQLite 实现，建表与幂等迁移在 `sqlite/db.go`（`users/resources/folders/notifications`）。
 - **Service (`internal/service`)**：
-  - `auth_service.go`：邮箱注册/登录、JWT 签发，依赖用户仓库。
-  - `resource_service.go`：资源上传/下载/审核/查重，依赖资源仓库与存储实现。
+  - `auth_service.go`：邮箱注册/登录、JWT 签发、配额查询。
+  - `resource_service.go`：文件上传/下载/重命名/移动（含配额校验与记账）。
+  - `folder_service.go`：纯文件夹 CRUD（创建/重命名/移动防环）。
+  - `trash_service.go`：回收站编排（级联软删除/还原/彻底删除、物理清理、配额回收）。
   - `storage.go`：本地文件系统存储实现（`FileStorage` 接口）。
 - **Handler (`internal/handler/http`)**：
-  - 路由与控制器：`user_handler.go`, `resource_handler.go`。
+  - 控制器按域拆分：`user_handler.go`、`resource_handler.go`、`drive_handler.go`（装配+错误映射）、`drive_folder_handler.go`、`drive_file_handler.go`、`drive_trash_handler.go`。
   - 中间件：认证/可选认证/管理员校验，`LoggingMiddleware`（请求日志）、`RecoverMiddleware`（panic 捕获）。
 - **Pkg**：
   - `pkg/logger`：日志输出到 stdout+`logs/server-YYYYMMDD-HHMMSS.log`。
