@@ -7,6 +7,16 @@
 
 当前版本为**纯本地部署版**：SQLite 单文件数据库 + 本地文件存储，零云服务依赖，开箱即用。
 
+## 界面预览
+
+| 登录 / 注册 | 我的网盘 |
+| :---: | :---: |
+| ![登录页](docs/screenshots/login.jpg) | ![网盘主页](docs/screenshots/drive.jpg) |
+
+| 回收站 | 个人中心（配额） |
+| :---: | :---: |
+| ![回收站](docs/screenshots/trash.jpg) | ![个人中心](docs/screenshots/profile.jpg) |
+
 ## 架构设计
 
 本项目遵循 **Clean Architecture**（整洁架构）原则，结合 **Standard Go Project Layout** 进行组织。旨在实现高内聚、低耦合，确保业务逻辑独立于外部框架和驱动。
