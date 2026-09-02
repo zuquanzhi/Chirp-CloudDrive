@@ -42,18 +42,18 @@ func main() {
 
 	// Init Services
 	authSvc := service.NewAuthService(userRepo, cfg.JWTSecret)
-	folderSvc := service.NewFolderService(folderRepo, userRepo)
 
 	storage, err := service.NewLocalStorage(cfg.UploadDir)
 	if err != nil {
 		log.Fatalf("failed to init storage: %v", err)
 	}
-	resourceSvc := service.NewResourceService(resourceRepo, storage)
+	resourceSvc := service.NewResourceService(resourceRepo, storage, userRepo, folderRepo)
+	folderSvc := service.NewFolderService(folderRepo, resourceRepo, userRepo, storage)
 
 	// Init Handlers
 	authHandler := handler.NewAuthHandler(authSvc)
 	resourceHandler := handler.NewResourceHandler(resourceSvc)
-	driveHandler := handler.NewDriveHandler(folderSvc)
+	driveHandler := handler.NewDriveHandler(folderSvc, resourceSvc)
 
 	// Setup Router
 	r := mux.NewRouter()
@@ -78,12 +78,20 @@ func main() {
 	api.HandleFunc("/me", authHandler.Me).Methods("GET")
 	api.HandleFunc("/me", authHandler.UpdateMe).Methods("PATCH")
 
-	// Drive Routes (folders & quota)
+	// Drive Routes (quota, folders, files, trash)
 	api.HandleFunc("/drive/quota", driveHandler.GetQuota).Methods("GET")
+	api.HandleFunc("/drive/items", driveHandler.ListItems).Methods("GET")
 	api.HandleFunc("/drive/folders", driveHandler.ListFolders).Methods("GET")
 	api.HandleFunc("/drive/folders", driveHandler.CreateFolder).Methods("POST")
 	api.HandleFunc("/drive/folders/{id}", driveHandler.UpdateFolder).Methods("PATCH")
 	api.HandleFunc("/drive/folders/{id}", driveHandler.DeleteFolder).Methods("DELETE")
+	api.HandleFunc("/drive/files", driveHandler.UploadFile).Methods("POST")
+	api.HandleFunc("/drive/files/{id}", driveHandler.UpdateFile).Methods("PATCH")
+	api.HandleFunc("/drive/files/{id}", driveHandler.DeleteFile).Methods("DELETE")
+	api.HandleFunc("/drive/files/{id}/download", driveHandler.DownloadFile).Methods("GET")
+	api.HandleFunc("/drive/trash", driveHandler.ListTrash).Methods("GET")
+	api.HandleFunc("/drive/trash/{kind}/{id}/restore", driveHandler.RestoreTrashItem).Methods("POST")
+	api.HandleFunc("/drive/trash/{kind}/{id}", driveHandler.HardDeleteTrashItem).Methods("DELETE")
 
 	// Admin Routes (Review, etc.)
 	admin := r.PathPrefix("/api/admin").Subrouter()

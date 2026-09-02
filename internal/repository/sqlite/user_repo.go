@@ -50,6 +50,11 @@ func (r *userRepository) UpdateProfile(ctx context.Context, u *domain.User) erro
 	return err
 }
 
+func (r *userRepository) AddUsed(ctx context.Context, userID int64, delta int64) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE users SET used = MAX(0, used + ?) WHERE id = ?`, delta, userID)
+	return err
+}
+
 func (r *userRepository) scanOne(row *sql.Row) (*domain.User, error) {
 	u := &domain.User{}
 	var created any

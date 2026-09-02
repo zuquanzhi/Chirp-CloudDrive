@@ -92,6 +92,34 @@ func (r *folderRepository) ListDescendantIDs(ctx context.Context, id int64) ([]i
 	return ids, rows.Err()
 }
 
+func (r *folderRepository) ListDeleted(ctx context.Context, ownerID int64) ([]domain.Folder, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT id,owner_id,parent_id,name,created_at,deleted_at FROM folders WHERE owner_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC`, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var folders []domain.Folder
+	for rows.Next() {
+		f, err := scanFolder(rows)
+		if err != nil {
+			return nil, err
+		}
+		folders = append(folders, *f)
+	}
+	return folders, rows.Err()
+}
+
+func (r *folderRepository) Restore(ctx context.Context, id int64) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE folders SET deleted_at = NULL WHERE id = ?`, id)
+	return err
+}
+
+func (r *folderRepository) HardDelete(ctx context.Context, id int64) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM folders WHERE id = ?`, id)
+	return err
+}
+
 type rowScanner interface {
 	Scan(dest ...any) error
 }

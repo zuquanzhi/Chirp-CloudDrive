@@ -13,6 +13,8 @@ type FileStorage interface {
 	Save(ctx context.Context, file io.Reader, filename string) (string, int64, error)
 	// Get for retrieving a file as a ReadCloser
 	Get(ctx context.Context, path string) (io.ReadCloser, error)
+	// Delete removes the physical file
+	Delete(ctx context.Context, path string) error
 	// GetPublicURL for getting a public URL to access the file
 	// For local storage, it may return a relative path
 	GetPublicURL(path string) string
@@ -53,6 +55,14 @@ func (s *LocalStorage) Save(ctx context.Context, file io.Reader, filename string
 func (s *LocalStorage) Get(ctx context.Context, path string) (io.ReadCloser, error) {
 	fpath := filepath.Join(s.baseDir, path)
 	return os.Open(fpath)
+}
+
+func (s *LocalStorage) Delete(ctx context.Context, path string) error {
+	fpath := filepath.Join(s.baseDir, filepath.Base(path))
+	if err := os.Remove(fpath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 func (s *LocalStorage) GetPublicURL(path string) string {

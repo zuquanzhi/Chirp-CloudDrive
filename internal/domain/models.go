@@ -45,6 +45,7 @@ type User struct {
 type Resource struct {
 	ID           int64          `json:"id"`
 	OwnerID      *int64         `json:"owner_id"` // Nullable for anonymous uploads
+	FolderID     *int64         `json:"folder_id"` // NULL means drive root
 	Title        string         `json:"title"`
 	Description  string         `json:"description"`
 	Filename     string         `json:"filename"`      // stored file name on disk
@@ -53,6 +54,7 @@ type Resource struct {
 	FileHash     string         `json:"file_hash"` // SHA256 hash for duplicate check
 	Status       ResourceStatus `json:"status"`    // PENDING, APPROVED, REJECTED
 	CreatedAt    time.Time      `json:"created_at"`
+	DeletedAt    *time.Time     `json:"deleted_at,omitempty"` // soft delete (trash)
 	Subject      string         `json:"subject,omitempty"`
 	Type         string         `json:"type,omitempty"`
 	URL          string         `json:"url,omitempty"` // Public URL for the file
@@ -83,6 +85,8 @@ type UserRepository interface {
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	GetByID(ctx context.Context, id int64) (*User, error)
 	UpdateProfile(ctx context.Context, user *User) error
+	// AddUsed adjusts the user's used bytes by delta (negative to decrease)
+	AddUsed(ctx context.Context, userID int64, delta int64) error
 }
 
 // ResourceRepository defines methods for resource persistence
@@ -92,6 +96,18 @@ type ResourceRepository interface {
 	GetByID(ctx context.Context, id int64) (*Resource, error)
 	UpdateStatus(ctx context.Context, id int64, status ResourceStatus) error
 	GetByHash(ctx context.Context, hash string) ([]Resource, error)
+
+	// Drive operations
+	ListByFolder(ctx context.Context, ownerID int64, folderID *int64, search string) ([]Resource, error)
+	Update(ctx context.Context, resource *Resource) error // rename / move
+	SoftDelete(ctx context.Context, id int64) error
+	SoftDeleteByFolder(ctx context.Context, folderID int64) error
+	ListDeleted(ctx context.Context, ownerID int64) ([]Resource, error)
+	ListByFolderIncludingDeleted(ctx context.Context, folderID int64) ([]Resource, error)
+	Restore(ctx context.Context, id int64, folderID *int64) error
+	RestoreByFolder(ctx context.Context, folderID int64) error
+	HardDelete(ctx context.Context, id int64) error
+	HardDeleteByFolder(ctx context.Context, folderID int64) error
 }
 
 // FolderRepository defines methods for folder persistence
@@ -103,6 +119,12 @@ type FolderRepository interface {
 	SoftDelete(ctx context.Context, id int64) error
 	// ListDescendantIDs returns ids of all folders under id (exclusive), for trash cascade and move-cycle checks
 	ListDescendantIDs(ctx context.Context, id int64) ([]int64, error)
+	// ListDeleted returns all soft-deleted folders of a user (trash)
+	ListDeleted(ctx context.Context, ownerID int64) ([]Folder, error)
+	// Restore clears the soft-delete mark
+	Restore(ctx context.Context, id int64) error
+	// HardDelete permanently removes the folder row
+	HardDelete(ctx context.Context, id int64) error
 }
 
 // NotificationRepository defines methods for notifications

@@ -88,6 +88,8 @@ func InitDB(dbPath string) (*sql.DB, error) {
 		`ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'USER'`,
 		`ALTER TABLE users ADD COLUMN quota INTEGER DEFAULT 1073741824`,
 		`ALTER TABLE users ADD COLUMN used INTEGER DEFAULT 0`,
+		`ALTER TABLE resources ADD COLUMN folder_id INTEGER`,
+		`ALTER TABLE resources ADD COLUMN deleted_at DATETIME`,
 	}
 	for _, m := range migrations {
 		if _, err := db.Exec(m); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
