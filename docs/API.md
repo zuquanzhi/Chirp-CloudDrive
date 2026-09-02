@@ -202,7 +202,73 @@
 *   **URL**: `/api/drive/folders/{id}`
 *   **Method**: `DELETE`
 *   **Headers**: `Authorization: Bearer <token>`
-*   **说明**: 软删除（连同所有子孙文件夹一并进入回收站）
+*   **说明**: 软删除（连同所有子孙文件夹及内部文件一并进入回收站）
+*   **Response**: `204 No Content`
+
+### 2.5.6 目录内容列表
+*   **URL**: `/api/drive/items`
+*   **Method**: `GET`
+*   **Query Params**:
+    *   `folder_id`: 文件夹 ID（可选，缺省表示根目录）
+    *   `q`: 文件名搜索关键词（可选）
+*   **Response**:
+    ```json
+    {
+        "folders": [ { "id": 1, "name": "课件", "parent_id": null, "...": "..." } ],
+        "files": [ { "id": 1, "original_name": "笔记.pdf", "size": 1024, "url": "/uploads/uuid.pdf", "...": "..." } ]
+    }
+    ```
+
+### 2.5.7 上传文件
+*   **URL**: `/api/drive/files`
+*   **Method**: `POST`
+*   **Headers**: `Content-Type: multipart/form-data`
+*   **Body (Form Data)**:
+    *   `file`: (File) 文件对象
+    *   `folder_id`: (Text, 可选) 目标文件夹 ID，缺省为根目录
+*   **说明**: 上传前校验配额，超限返回 `413 quota exceeded`；成功后计入 `used`
+*   **Response**: `201 Created`，返回文件对象（个人网盘文件默认 `APPROVED`）
+
+### 2.5.8 下载文件
+*   **URL**: `/api/drive/files/{id}/download`
+*   **Method**: `GET`
+*   **Response**: 文件流（仅文件所有者可用，回收站中的文件不可下载）
+
+### 2.5.9 重命名 / 移动文件
+*   **URL**: `/api/drive/files/{id}`
+*   **Method**: `PATCH`
+*   **Body**（两个字段可单独或同时提供）:
+    ```json
+    {
+        "name": "新文件名.pdf",
+        "folder_id": 3
+    }
+    ```
+    *   `name`: 重命名
+    *   `folder_id`: 移动到目标文件夹；`null` 表示移回根目录
+
+### 2.5.10 删除文件（移入回收站）
+*   **URL**: `/api/drive/files/{id}`
+*   **Method**: `DELETE`
+*   **Response**: `204 No Content`
+
+### 2.5.11 回收站列表
+*   **URL**: `/api/drive/trash`
+*   **Method**: `GET`
+*   **说明**: 返回顶层已删除的文件夹与文件（位于已删除文件夹内的文件不单独列出）
+*   **Response**: 结构同 `items`：`{"folders": [...], "files": [...]}`
+
+### 2.5.12 还原回收站内容
+*   **URL**: `/api/drive/trash/{kind}/{id}/restore`
+*   **Method**: `POST`
+*   **Path Params**: `kind` = `folders` | `files`
+*   **说明**: 文件夹还原会级联还原其子树；原父目录已删除时自动挂回根目录
+
+### 2.5.13 彻底删除
+*   **URL**: `/api/drive/trash/{kind}/{id}`
+*   **Method**: `DELETE`
+*   **Path Params**: `kind` = `folders` | `files`
+*   **说明**: 永久删除（物理文件一并删除、释放配额），**不可恢复**
 *   **Response**: `204 No Content`
 
 ## 3. 管理员接口 (Admin)
@@ -260,10 +326,18 @@
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :---: |
 | **GET** | `/api/drive/quota` | 查询配额与已用空间 | Yes |
+| **GET** | `/api/drive/items` | 目录内容列表 (`?folder_id=&q=`) | Yes |
 | **GET** | `/api/drive/folders` | 列出文件夹 (`?parent_id=`) | Yes |
 | **POST** | `/api/drive/folders` | 创建文件夹 | Yes |
 | **PATCH** | `/api/drive/folders/{id}` | 重命名 / 移动文件夹 | Yes |
 | **DELETE** | `/api/drive/folders/{id}` | 删除文件夹（软删除，级联子孙） | Yes |
+| **POST** | `/api/drive/files` | 上传文件（multipart，校验配额） | Yes |
+| **GET** | `/api/drive/files/{id}/download` | 下载文件 | Yes |
+| **PATCH** | `/api/drive/files/{id}` | 重命名 / 移动文件 | Yes |
+| **DELETE** | `/api/drive/files/{id}` | 文件移入回收站 | Yes |
+| **GET** | `/api/drive/trash` | 回收站列表 | Yes |
+| **POST** | `/api/drive/trash/{kind}/{id}/restore` | 还原（kind: folders/files） | Yes |
+| **DELETE** | `/api/drive/trash/{kind}/{id}` | 彻底删除（释放配额） | Yes |
 
 ### 管理员接口 (Admin)
 

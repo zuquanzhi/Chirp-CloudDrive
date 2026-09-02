@@ -1,9 +1,9 @@
-# Chirp (知了) - Backend Service
+# Chirp (知了) - CloudDrive 网盘系统
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Chirp** 是一个面向大学生的资料共享平台后端服务。本项目采用 Golang 开发，旨在提供高效、安全的文件存储与元数据管理服务。
+**Chirp CloudDrive** 是一个面向大学生的网盘系统（课程设计）：Go 后端 + React 前端，支持文件夹管理、文件上传下载、回收站与存储配额。
 
 当前版本为**纯本地部署版**：SQLite 单文件数据库 + 本地文件存储，零云服务依赖，开箱即用。
 
@@ -36,6 +36,7 @@
 │   └── service/              # 业务逻辑层
 ├── pkg/                      # 公共库 (可被外部项目复用)
 │   └── util/                 # 工具函数 (如 Password Hashing)
+├── frontend/                 # React 前端 (Vite + TS + Tailwind + shadcn/ui)
 ├── uploads/                  # 本地文件存储目录
 ├── go.mod                    # 依赖管理
 └── README.md                 # 项目文档
@@ -55,7 +56,8 @@
 ### 接口概览
 
 *   **用户认证**: 邮箱注册、邮箱登录、获取/更新用户信息
-*   **资源管理**: 上传（支持匿名）、下载、搜索资源
+*   **网盘 (Drive)**: 文件夹管理、文件上传/下载/重命名/移动、目录搜索、存储配额
+*   **回收站**: 还原、彻底删除（释放配额）
 *   **管理员**: 资源审核、查重
 
 ## 本地开发环境搭建
@@ -108,14 +110,21 @@
     ./scripts/test_api.sh
     ```
 
+6.  **启动前端（另开一个终端）**
+
+    ```bash
+    cd frontend
+    npm install
+    npm run dev        # http://localhost:3000，已配置代理到后端 :9527
+    ```
+
+    详见 [frontend/README.md](frontend/README.md)。
+
 ## 技术栈
 
-*   **Language**: Go (Golang)
-*   **Web Framework**: Gorilla Mux
-*   **Database**: SQLite (`modernc.org/sqlite`，纯 Go，无 CGO)
+*   **Backend**: Go + Gorilla Mux + SQLite (`modernc.org/sqlite`，纯 Go 无 CGO) + JWT + bcrypt
+*   **Frontend**: React 19 + TypeScript + Vite + Tailwind CSS + shadcn/ui
 *   **Storage**: Local Filesystem
-*   **Auth**: JWT (JSON Web Tokens)
-*   **Password Hashing**: bcrypt
 
 ## 开发规范
 
@@ -128,8 +137,10 @@
 *   [x] 基础用户认证 (Signup/Login/JWT)
 *   [x] 资源上传与下载 (Local Storage)
 *   [x] 架构重构 (Clean Architecture)
-*   [x] MVP 1.0 功能 (匿名上传/搜索/审核/查重)
 *   [x] 纯本地化裁剪（SQLite + 本地存储，移除云服务依赖）
+*   [x] 网盘 M1：存储配额 + 文件夹管理
+*   [x] 网盘 M2：文件管理 + 回收站（还原/彻底删除/配额回收）
+*   [x] React 前端（网盘主页/回收站/个人中心，拖拽上传与拖拽移动）
 *   [ ] Docker 容器化部署支持
 *   [ ] 单元测试覆盖
 
