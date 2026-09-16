@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router'
-import { Cloud, HardDrive, LogOut, Trash2, User as UserIcon } from 'lucide-react'
+import { Activity, Cloud, HardDrive, Link2, LogOut, Trash2, User as UserIcon } from 'lucide-react'
 import { getQuota } from '@/lib/api'
 import { formatSize } from '@/lib/format'
 import { useAuth } from '@/hooks/use-auth'
@@ -10,6 +10,8 @@ import { cn } from '@/lib/utils'
 
 const navItems = [
   { to: '/', label: '我的网盘', icon: HardDrive, end: true },
+  { to: '/shares', label: '我的分享', icon: Link2 },
+  { to: '/activities', label: '最近动态', icon: Activity },
   { to: '/trash', label: '回收站', icon: Trash2 },
   { to: '/profile', label: '个人中心', icon: UserIcon },
 ]

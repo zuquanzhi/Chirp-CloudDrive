@@ -6,6 +6,9 @@ import LoginPage from '@/pages/LoginPage'
 import DrivePage from '@/pages/DrivePage'
 import TrashPage from '@/pages/TrashPage'
 import ProfilePage from '@/pages/ProfilePage'
+import SharePage from '@/pages/SharePage'
+import SharesPage from '@/pages/SharesPage'
+import ActivitiesPage from '@/pages/ActivitiesPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -41,6 +44,8 @@ export default function App() {
             </GuestOnly>
           }
         />
+        {/* Public share link page */}
+        <Route path="/share/:token" element={<SharePage />} />
         <Route
           element={
             <RequireAuth>
@@ -50,6 +55,8 @@ export default function App() {
         >
           <Route path="/" element={<DrivePage />} />
           <Route path="/trash" element={<TrashPage />} />
+          <Route path="/shares" element={<SharesPage />} />
+          <Route path="/activities" element={<ActivitiesPage />} />
           <Route path="/profile" element={<ProfilePage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

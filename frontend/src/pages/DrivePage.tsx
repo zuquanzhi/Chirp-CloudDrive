@@ -4,11 +4,15 @@ import {
   ArrowUpDown,
   ChevronRight,
   Download,
+  Eye,
   File as FileIcon,
   Folder as FolderIcon,
   FolderInput,
   FolderPlus,
+  History,
   Home,
+  Link2,
+  Loader2,
   MoreHorizontal,
   Pencil,
   RefreshCw,
@@ -16,9 +20,14 @@ import {
   Trash2,
   Upload,
   UploadCloud,
+  X,
+  Zap,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
+  batchDelete,
+  batchDownload,
+  batchMove,
   createFolder,
   deleteFile,
   deleteFolder,
@@ -28,14 +37,19 @@ import {
   moveFolder,
   renameFile,
   renameFolder,
-  uploadFile,
 } from '@/lib/api'
+import { smartUpload, type UploadProgress } from '@/lib/upload'
 import { formatSize, formatTime } from '@/lib/format'
 import type { DriveFile, Folder } from '@/types'
+import PreviewDialog from '@/components/PreviewDialog'
+import ShareDialog from '@/components/ShareDialog'
+import VersionsDialog from '@/components/VersionsDialog'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { Progress } from '@/components/ui/progress'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 
@@ -51,6 +65,21 @@ type ItemRef =
 type SortKey = 'name' | 'size' | 'time'
 
 const DND_TYPE = 'application/x-chirp-item'
+
+interface UploadTask {
+  name: string
+  progress: UploadProgress
+  instant?: boolean
+  error?: string
+}
+
+const phaseLabel: Record<UploadProgress['phase'], string> = {
+  hashing: '计算特征码…',
+  instant: '秒传…',
+  uploading: '上传中…',
+  merging: '合并分片…',
+  done: '完成',
+}
 
 export default function DrivePage() {
   const { refreshQuota } = useOutletContext<{ refreshQuota: () => void }>()
@@ -70,11 +99,22 @@ export default function DrivePage() {
   const [renameValue, setRenameValue] = useState('')
 
   const [moveTarget, setMoveTarget] = useState<ItemRef | null>(null)
+  const [batchMoveOpen, setBatchMoveOpen] = useState(false)
+
+  const [previewFile, setPreviewFile] = useState<DriveFile | null>(null)
+  const [shareFile, setShareFile] = useState<DriveFile | null>(null)
+  const [versionsFile, setVersionsFile] = useState<DriveFile | null>(null)
+
+  // Selection state: "folder:<id>" / "file:<id>"
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+
+  // Upload tasks (smart upload pipeline)
+  const [tasks, setTasks] = useState<UploadTask[]>([])
 
   // DnD state
-  const [dropFolderId, setDropFolderId] = useState<number | null>(null) // highlighted folder row
-  const [dropCrumbIdx, setDropCrumbIdx] = useState<number | null>(null) // highlighted breadcrumb
-  const [dragFilesOver, setDragFilesOver] = useState(false) // OS files dragged over the page
+  const [dropFolderId, setDropFolderId] = useState<number | null>(null)
+  const [dropCrumbIdx, setDropCrumbIdx] = useState<number | null>(null)
+  const [dragFilesOver, setDragFilesOver] = useState(false)
   const dragDepth = useRef(0)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -98,6 +138,11 @@ export default function DrivePage() {
     const timer = setTimeout(refresh, search ? 300 : 0)
     return () => clearTimeout(timer)
   }, [refresh, search])
+
+  // Clear selection when navigating
+  useEffect(() => {
+    setSelected(new Set())
+  }, [currentFolderId])
 
   const sortedFolders = useMemo(
     () => [...folders].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN')),
@@ -146,28 +191,39 @@ export default function DrivePage() {
     }
   }
 
+  // ---- Smart upload (instant / chunked / classic) ----
+
+  const updateTask = (name: string, patch: Partial<UploadTask>) => {
+    setTasks((cur) => cur.map((t) => (t.name === name ? { ...t, ...patch } : t)))
+  }
+
   const uploadFiles = useCallback(
     async (list: FileList | File[]) => {
       const arr = Array.from(list)
       if (arr.length === 0) return
+      setTasks((cur) => [
+        ...cur,
+        ...arr.map((f) => ({ name: f.name, progress: { phase: 'hashing', percent: 0 } as UploadProgress })),
+      ])
       let ok = 0
       for (const file of arr) {
         try {
-          await uploadFile(file, currentFolderId)
+          const result = await smartUpload(file, currentFolderId, (p) => updateTask(file.name, { progress: p }))
           ok++
+          updateTask(file.name, { instant: result.instant })
+          if (result.instant) toast.success(`「${file.name}」秒传成功`, { icon: <Zap className="h-4 w-4" /> })
         } catch (err) {
-          toast.error(
-            err instanceof Error && err.message.includes('quota')
-              ? `「${file.name}」上传失败：存储空间不足`
-              : `「${file.name}」上传失败`,
-          )
+          const msg = err instanceof Error && err.message.includes('quota') ? '存储空间不足' : '上传失败'
+          updateTask(file.name, { error: msg })
+          toast.error(`「${file.name}」${msg}`)
         }
       }
       if (ok > 0) {
-        toast.success(ok === arr.length ? `${ok} 个文件上传成功` : `${ok}/${arr.length} 个文件上传成功`)
         refresh()
         refreshQuota()
       }
+      // Auto-clear finished tasks
+      setTimeout(() => setTasks((cur) => cur.filter((t) => t.progress.phase !== 'done' && !t.error)), 4000)
     },
     [currentFolderId, refresh, refreshQuota],
   )
@@ -216,12 +272,82 @@ export default function DrivePage() {
     }
   }
 
+  // ---- Selection & batch operations ----
+
+  const keyOf = (ref: ItemRef) => `${ref.kind}:${ref.item.id}`
+  const selectedFiles = sortedFiles.filter((f) => selected.has(`file:${f.id}`))
+  const selectedFolders = sortedFolders.filter((f) => selected.has(`folder:${f.id}`))
+  const allSelected = sortedFolders.length + sortedFiles.length > 0 &&
+    selected.size === sortedFolders.length + sortedFiles.length
+
+  const toggleOne = (ref: ItemRef, checked: boolean) => {
+    setSelected((cur) => {
+      const next = new Set(cur)
+      if (checked) next.add(keyOf(ref))
+      else next.delete(keyOf(ref))
+      return next
+    })
+  }
+
+  const toggleAll = (checked: boolean) => {
+    if (!checked) {
+      setSelected(new Set())
+      return
+    }
+    setSelected(new Set([
+      ...sortedFolders.map((f) => `folder:${f.id}`),
+      ...sortedFiles.map((f) => `file:${f.id}`),
+    ]))
+  }
+
+  const handleBatchDelete = async () => {
+    try {
+      const res = await batchDelete(
+        selectedFiles.map((f) => f.id),
+        selectedFolders.map((f) => f.id),
+      )
+      const failCount = Object.keys(res.failed ?? {}).length
+      if (failCount > 0) toast.warning(`${res.deleted} 项已删除，${failCount} 项失败`)
+      else toast.success(`${res.deleted} 项已移入回收站`)
+      setSelected(new Set())
+      refresh()
+    } catch {
+      toast.error('批量删除失败')
+    }
+  }
+
+  const handleBatchDownload = async () => {
+    if (selectedFiles.length === 0) {
+      toast.info('请先勾选要下载的文件')
+      return
+    }
+    try {
+      await batchDownload(selectedFiles.map((f) => f.id))
+      toast.success('打包下载已开始')
+    } catch {
+      toast.error('打包下载失败')
+    }
+  }
+
+  const handleBatchMove = async (targetFolderId: number | null) => {
+    try {
+      const res = await batchMove(selectedFiles.map((f) => f.id), targetFolderId)
+      const failCount = Object.keys(res.failed ?? {}).length
+      if (failCount > 0) toast.warning(`${res.moved} 个文件已移动，${failCount} 个失败`)
+      else toast.success(`${res.moved} 个文件已移动`)
+      setSelected(new Set())
+      setBatchMoveOpen(false)
+      refresh()
+    } catch {
+      toast.error('批量移动失败')
+    }
+  }
+
   // ---- Internal drag & drop (move) ----
 
   const doMove = useCallback(
     async (ref: ItemRef, targetFolderId: number | null) => {
       if (ref.kind === 'folder' && ref.item.id === targetFolderId) return
-      if (ref.item.id === (ref.kind === 'folder' ? targetFolderId : -1)) return
       try {
         if (ref.kind === 'folder') {
           await moveFolder(ref.item.id, targetFolderId)
@@ -359,6 +485,29 @@ export default function DrivePage() {
         </Button>
       </div>
 
+      {/* Batch action bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm">
+          <span className="text-sky-700">已选 {selected.size} 项</span>
+          <Button size="sm" variant="outline" onClick={handleBatchDownload} disabled={selectedFiles.length === 0}>
+            <Download className="h-4 w-4 mr-1" />
+            打包下载 ({selectedFiles.length})
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setBatchMoveOpen(true)} disabled={selectedFiles.length === 0}>
+            <FolderInput className="h-4 w-4 mr-1" />
+            移动到…
+          </Button>
+          <Button size="sm" variant="outline" className="text-red-600" onClick={handleBatchDelete}>
+            <Trash2 className="h-4 w-4 mr-1" />
+            删除
+          </Button>
+          <Button size="sm" variant="ghost" className="ml-auto" onClick={() => setSelected(new Set())}>
+            <X className="h-4 w-4 mr-1" />
+            取消选择
+          </Button>
+        </div>
+      )}
+
       {/* Breadcrumb (also drop targets) */}
       <div className="flex items-center gap-1 text-sm text-slate-600">
         {crumbs.map((crumb, i) => (
@@ -385,6 +534,9 @@ export default function DrivePage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10">
+                <Checkbox checked={allSelected} onCheckedChange={(v) => toggleAll(!!v)} />
+              </TableHead>
               <TableHead>
                 <button className="flex items-center gap-1 hover:text-sky-600" onClick={() => toggleSort('name')}>
                   名称
@@ -409,7 +561,7 @@ export default function DrivePage() {
           <TableBody>
             {sortedFolders.length === 0 && sortedFiles.length === 0 && !loading && (
               <TableRow>
-                <TableCell colSpan={4} className="text-center py-12 text-slate-400">
+                <TableCell colSpan={5} className="text-center py-12 text-slate-400">
                   这里空空如也，点击上传或直接把文件拖进来
                 </TableCell>
               </TableRow>
@@ -417,12 +569,22 @@ export default function DrivePage() {
             {sortedFolders.map((folder) => (
               <TableRow
                 key={`f-${folder.id}`}
-                className={cn('cursor-pointer', dropFolderId === folder.id && 'bg-sky-50 outline outline-1 outline-sky-400')}
+                className={cn(
+                  'cursor-pointer',
+                  dropFolderId === folder.id && 'bg-sky-50 outline outline-1 outline-sky-400',
+                  selected.has(`folder:${folder.id}`) && 'bg-sky-50/60',
+                )}
                 draggable
                 onDragStart={(e) => onItemDragStart(e, { kind: 'folder', item: folder })}
                 {...folderDropProps(folder)}
                 onDoubleClick={() => enterFolder(folder)}
               >
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    checked={selected.has(`folder:${folder.id}`)}
+                    onCheckedChange={(v) => toggleOne({ kind: 'folder', item: folder }, !!v)}
+                  />
+                </TableCell>
                 <TableCell>
                   <button className="flex items-center gap-2 hover:text-sky-600" onClick={() => enterFolder(folder)}>
                     <FolderIcon className="h-5 w-5 text-amber-500" />
@@ -446,20 +608,37 @@ export default function DrivePage() {
             {sortedFiles.map((file) => (
               <TableRow
                 key={`file-${file.id}`}
+                className={cn(selected.has(`file:${file.id}`) && 'bg-sky-50/60')}
                 draggable
                 onDragStart={(e) => onItemDragStart(e, { kind: 'file', item: file })}
               >
                 <TableCell>
-                  <div className="flex items-center gap-2">
-                    <FileIcon className="h-5 w-5 text-sky-500" />
+                  <Checkbox
+                    checked={selected.has(`file:${file.id}`)}
+                    onCheckedChange={(v) => toggleOne({ kind: 'file', item: file }, !!v)}
+                  />
+                </TableCell>
+                <TableCell>
+                  <button
+                    className="flex items-center gap-2 hover:text-sky-600 text-left"
+                    onClick={() => setPreviewFile(file)}
+                    title="点击预览"
+                  >
+                    <FileIcon className="h-5 w-5 text-sky-500 shrink-0" />
                     <span>{file.original_name}</span>
-                  </div>
+                    {file.version > 1 && (
+                      <span className="text-[10px] rounded bg-violet-100 text-violet-600 px-1 py-0.5">v{file.version}</span>
+                    )}
+                  </button>
                 </TableCell>
                 <TableCell className="text-slate-500">{formatSize(file.size)}</TableCell>
                 <TableCell className="text-slate-500">{formatTime(file.created_at)}</TableCell>
                 <TableCell>
                   <RowActions
+                    onPreview={() => setPreviewFile(file)}
                     onDownload={() => handleDownload(file)}
+                    onShare={() => setShareFile(file)}
+                    onVersions={() => setVersionsFile(file)}
                     onRename={() => {
                       setRenameTarget({ kind: 'file', item: file })
                       setRenameValue(file.original_name)
@@ -474,7 +653,37 @@ export default function DrivePage() {
         </Table>
       </div>
 
-      <p className="text-xs text-slate-400">提示：可以把文件/文件夹拖到某个文件夹上移动，也可以直接把电脑里的文件拖进页面上传。</p>
+      <p className="text-xs text-slate-400">
+        提示：点击文件名可在线预览；重复内容秒传；大于 8MB 自动分片续传；同名上传自动保留历史版本。
+      </p>
+
+      {/* Upload tasks panel */}
+      {tasks.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-30 w-80 rounded-lg border bg-white shadow-lg p-3 space-y-2">
+          {tasks.map((t) => (
+            <div key={t.name} className="space-y-1">
+              <div className="flex items-center gap-2 text-xs">
+                {t.error ? (
+                  <X className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                ) : t.progress.phase === 'done' ? (
+                  t.instant ? (
+                    <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  ) : (
+                    <Upload className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                  )
+                ) : (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-sky-500 shrink-0" />
+                )}
+                <span className="truncate flex-1 text-slate-700">{t.name}</span>
+                <span className={cn('shrink-0', t.error ? 'text-red-500' : 'text-slate-400')}>
+                  {t.error ?? (t.instant && t.progress.phase === 'done' ? '秒传完成' : phaseLabel[t.progress.phase])}
+                </span>
+              </div>
+              {!t.error && <Progress value={t.progress.percent} className="h-1" />}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* New folder dialog */}
       <Dialog open={newFolderOpen} onOpenChange={setNewFolderOpen}>
@@ -517,15 +726,43 @@ export default function DrivePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Move dialog (key forces fresh state for each target) */}
+      {/* Move dialogs (single + batch) */}
       <MoveDialog
         key={moveTarget ? `${moveTarget.kind}-${moveTarget.item.id}` : 'none'}
-        target={moveTarget}
+        open={moveTarget !== null}
+        title="移动到…"
+        description={
+          moveTarget
+            ? `选择「${moveTarget.kind === 'folder' ? (moveTarget.item as Folder).name : (moveTarget.item as DriveFile).original_name}」的目标位置`
+            : ''
+        }
+        excludeFolderId={moveTarget?.kind === 'folder' ? moveTarget.item.id : undefined}
         currentFolderId={currentFolderId}
         onClose={() => setMoveTarget(null)}
-        onMoved={() => {
+        onConfirm={async (targetId) => {
+          if (!moveTarget) return
+          await doMove(moveTarget, targetId)
           setMoveTarget(null)
+        }}
+      />
+      <MoveDialog
+        open={batchMoveOpen}
+        title="批量移动"
+        description={`将选中的 ${selectedFiles.length} 个文件移动到…`}
+        currentFolderId={currentFolderId}
+        onClose={() => setBatchMoveOpen(false)}
+        onConfirm={handleBatchMove}
+      />
+
+      {/* Preview / Share / Versions dialogs */}
+      <PreviewDialog file={previewFile} onClose={() => setPreviewFile(null)} />
+      <ShareDialog file={shareFile} onClose={() => setShareFile(null)} />
+      <VersionsDialog
+        file={versionsFile}
+        onClose={() => setVersionsFile(null)}
+        onRestored={() => {
           refresh()
+          refreshQuota()
         }}
       />
     </div>
@@ -533,12 +770,18 @@ export default function DrivePage() {
 }
 
 function RowActions({
+  onPreview,
   onDownload,
+  onShare,
+  onVersions,
   onRename,
   onMove,
   onDelete,
 }: {
+  onPreview?: () => void
   onDownload?: () => void
+  onShare?: () => void
+  onVersions?: () => void
   onRename: () => void
   onMove: () => void
   onDelete: () => void
@@ -551,10 +794,28 @@ function RowActions({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        {onPreview && (
+          <DropdownMenuItem onClick={onPreview}>
+            <Eye className="h-4 w-4 mr-2" />
+            预览
+          </DropdownMenuItem>
+        )}
         {onDownload && (
           <DropdownMenuItem onClick={onDownload}>
             <Download className="h-4 w-4 mr-2" />
             下载
+          </DropdownMenuItem>
+        )}
+        {onShare && (
+          <DropdownMenuItem onClick={onShare}>
+            <Link2 className="h-4 w-4 mr-2" />
+            分享
+          </DropdownMenuItem>
+        )}
+        {onVersions && (
+          <DropdownMenuItem onClick={onVersions}>
+            <History className="h-4 w-4 mr-2" />
+            历史版本
           </DropdownMenuItem>
         )}
         <DropdownMenuItem onClick={onRename}>
@@ -575,52 +836,54 @@ function RowActions({
 }
 
 function MoveDialog({
-  target,
+  open,
+  title,
+  description,
+  excludeFolderId,
   currentFolderId,
   onClose,
-  onMoved,
+  onConfirm,
 }: {
-  target: ItemRef | null
+  open: boolean
+  title: string
+  description: string
+  excludeFolderId?: number
   currentFolderId: number | null
   onClose: () => void
-  onMoved: () => void
+  onConfirm: (targetFolderId: number | null) => Promise<void>
 }) {
   const [crumbs, setCrumbs] = useState<Crumb[]>([{ id: null, name: '全部文件' }])
   const [folders, setFolders] = useState<Folder[]>([])
+  const [busy, setBusy] = useState(false)
   const browseId = crumbs[crumbs.length - 1].id
 
   useEffect(() => {
-    if (!target) return
+    if (!open) return
+    setCrumbs([{ id: null, name: '全部文件' }])
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
     listItems(browseId).then((data) => setFolders(data.folders)).catch(() => setFolders([]))
-  }, [browseId, target])
+  }, [browseId, open])
 
-  if (!target) return null
-
-  const excludedId = target.kind === 'folder' ? target.item.id : -1
   const isCurrent = browseId === currentFolderId
 
-  const doMove = async () => {
+  const confirm = async () => {
+    setBusy(true)
     try {
-      if (target.kind === 'folder') {
-        await moveFolder(target.item.id, browseId)
-      } else {
-        await moveFile(target.item.id, browseId)
-      }
-      toast.success('已移动')
-      onMoved()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : '移动失败')
+      await onConfirm(browseId)
+    } finally {
+      setBusy(false)
     }
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>移动到…</DialogTitle>
-          <DialogDescription>
-            选择「{target.kind === 'folder' ? (target.item as Folder).name : (target.item as DriveFile).original_name}」的目标位置
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="flex items-center gap-1 text-sm text-slate-600">
           {crumbs.map((crumb, i) => (
@@ -633,11 +896,11 @@ function MoveDialog({
           ))}
         </div>
         <div className="max-h-56 overflow-auto rounded-md border divide-y">
-          {folders.filter((f) => f.id !== excludedId).length === 0 && (
+          {folders.filter((f) => f.id !== excludeFolderId).length === 0 && (
             <div className="py-8 text-center text-sm text-slate-400">此目录下没有文件夹</div>
           )}
           {folders
-            .filter((f) => f.id !== excludedId)
+            .filter((f) => f.id !== excludeFolderId)
             .map((folder) => (
               <button
                 key={folder.id}
@@ -651,7 +914,8 @@ function MoveDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>取消</Button>
-          <Button onClick={doMove} disabled={isCurrent}>
+          <Button onClick={confirm} disabled={isCurrent || busy}>
+            {busy && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             移动到此处
           </Button>
         </DialogFooter>

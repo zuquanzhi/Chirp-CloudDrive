@@ -120,6 +120,24 @@ func (r *folderRepository) HardDelete(ctx context.Context, id int64) error {
 	return err
 }
 
+func (r *folderRepository) ListDeletedBefore(ctx context.Context, cutoff time.Time) ([]domain.Folder, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT id,owner_id,parent_id,name,created_at,deleted_at FROM folders WHERE deleted_at IS NOT NULL AND deleted_at < ?`, cutoff.Format("2006-01-02 15:04:05"))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	folders := make([]domain.Folder, 0)
+	for rows.Next() {
+		f, err := scanFolder(rows)
+		if err != nil {
+			return nil, err
+		}
+		folders = append(folders, *f)
+	}
+	return folders, rows.Err()
+}
+
 type rowScanner interface {
 	Scan(dest ...any) error
 }

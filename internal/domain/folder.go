@@ -30,4 +30,6 @@ type FolderRepository interface {
 	Restore(ctx context.Context, id int64) error
 	// HardDelete permanently removes the folder row
 	HardDelete(ctx context.Context, id int64) error
+	// ListDeletedBefore returns soft-deleted folders (any owner) deleted before cutoff, for auto-cleanup.
+	ListDeletedBefore(ctx context.Context, cutoff time.Time) ([]Folder, error)
 }

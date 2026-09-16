@@ -70,6 +70,44 @@ func InitDB(dbPath string) (*sql.DB, error) {
 		FOREIGN KEY(parent_id) REFERENCES folders(id)
 	);`
 
+	createShares := `CREATE TABLE IF NOT EXISTS shares (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		token TEXT UNIQUE NOT NULL,
+		resource_id INTEGER NOT NULL,
+		owner_id INTEGER NOT NULL,
+		password TEXT,
+		expires_at DATETIME,
+		downloads INTEGER DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY(resource_id) REFERENCES resources(id),
+		FOREIGN KEY(owner_id) REFERENCES users(id)
+	);`
+
+	createActivities := `CREATE TABLE IF NOT EXISTS activities (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
+		action TEXT NOT NULL,
+		target_kind TEXT NOT NULL,
+		target_id INTEGER,
+		target_name TEXT,
+		detail TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY(user_id) REFERENCES users(id)
+	);`
+
+	createUploadSessions := `CREATE TABLE IF NOT EXISTS upload_sessions (
+		id TEXT PRIMARY KEY,
+		owner_id INTEGER NOT NULL,
+		folder_id INTEGER,
+		filename TEXT NOT NULL,
+		size INTEGER NOT NULL,
+		chunk_size INTEGER NOT NULL,
+		total_chunks INTEGER NOT NULL,
+		file_hash TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY(owner_id) REFERENCES users(id)
+	);`
+
 	if _, err := db.Exec(createUsers); err != nil {
 		return nil, err
 	}
@@ -82,6 +120,15 @@ func InitDB(dbPath string) (*sql.DB, error) {
 	if _, err := db.Exec(createFolders); err != nil {
 		return nil, err
 	}
+	if _, err := db.Exec(createShares); err != nil {
+		return nil, err
+	}
+	if _, err := db.Exec(createActivities); err != nil {
+		return nil, err
+	}
+	if _, err := db.Exec(createUploadSessions); err != nil {
+		return nil, err
+	}
 
 	// Migrations for databases created by older versions (idempotent).
 	migrations := []string{
@@ -90,6 +137,9 @@ func InitDB(dbPath string) (*sql.DB, error) {
 		`ALTER TABLE users ADD COLUMN used INTEGER DEFAULT 0`,
 		`ALTER TABLE resources ADD COLUMN folder_id INTEGER`,
 		`ALTER TABLE resources ADD COLUMN deleted_at DATETIME`,
+		`ALTER TABLE resources ADD COLUMN version_group TEXT DEFAULT ''`,
+		`ALTER TABLE resources ADD COLUMN version INTEGER DEFAULT 1`,
+		`ALTER TABLE resources ADD COLUMN is_latest BOOLEAN DEFAULT 1`,
 	}
 	for _, m := range migrations {
 		if _, err := db.Exec(m); err != nil && !strings.Contains(err.Error(), "duplicate column name") {

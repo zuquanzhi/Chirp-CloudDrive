@@ -347,3 +347,69 @@
 | **GET** | `/api/admin/resources/duplicates` | 文件查重 (`?hash=...`) | Yes |
 
 *注：所有受保护接口需在 Header 中携带 `Authorization: Bearer <token>`*
+
+---
+
+## 7. 新增接口 (v2)
+
+### 在线预览 (Inline Preview)
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :---: |
+| **GET** | `/api/drive/files/{id}/download?inline=1` | 在线预览（`Content-Disposition: inline`，按扩展名/嗅探返回正确的 Content-Type） | Yes |
+| **GET** | `/api/shares/{token}/download?inline=1` | 分享文件在线预览 | No |
+
+### 秒传 / 去重 (Instant Upload)
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :---: |
+| **POST** | `/api/drive/files/instant` | 秒传：`{"name","hash","size","folder_id"}`，hash 已存在时直接创建文件条目，无需传输内容 | Yes |
+
+*普通 multipart 上传与分片合并同样会自动命中去重：相同 SHA-256 的文件共享同一物理对象，物理删除按引用计数处理。*
+
+### 分片 / 断点续传 (Chunked Upload)
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :---: |
+| **POST** | `/api/drive/uploads/init` | 初始化：`{"filename","size","folder_id","file_hash","chunk_size"}`；hash 命中时直接返回 `instant:true` | Yes |
+| **GET** | `/api/drive/uploads/{id}` | 查询会话状态（含已上传分片序号 `uploaded_chunks`，用于续传） | Yes |
+| **PUT** | `/api/drive/uploads/{id}/chunks/{index}` | 上传分片（原始字节流） | Yes |
+| **POST** | `/api/drive/uploads/{id}/complete` | 合并分片：校验总大小与 SHA-256 后生成文件 | Yes |
+| **DELETE** | `/api/drive/uploads/{id}` | 放弃上传（清理分片） | Yes |
+
+### 版本历史 (Version History)
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :---: |
+| **GET** | `/api/drive/files/{id}/versions` | 列出版本组全部版本（新版本在前） | Yes |
+| **POST** | `/api/drive/files/{id}/versions/{vid}/restore` | 恢复指定版本（生成一个新最新版本，复用旧物理对象） | Yes |
+
+*同一目录下同名上传会自动生成 `version+1` 并保留旧版本；目录列表只展示最新版；删除/还原/彻底删除按版本组级联。*
+
+### 分享链接 (Share Links)
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :---: |
+| **POST** | `/api/drive/shares` | 创建分享：`{"resource_id","password"?,"expire_days"?}`（`expire_days<=0` 为永久） | Yes |
+| **GET** | `/api/drive/shares` | 我的分享列表（含文件名、下载次数、过期时间） | Yes |
+| **DELETE** | `/api/drive/shares/{id}` | 取消分享 | Yes |
+| **GET** | `/api/shares/{token}` | 查看分享信息（公开，`has_password` 标记，不泄露提取码） | No |
+| **GET** | `/api/shares/{token}/download?password=` | 通过分享下载（公开，错误提取码返回 403，过期返回 410） | No |
+
+### 批量操作 (Batch Operations)
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :---: |
+| **POST** | `/api/drive/batch/delete` | 批量移入回收站：`{"file_ids":[],"folder_ids":[]}`（单项失败不影响整体） | Yes |
+| **POST** | `/api/drive/batch/move` | 批量移动文件：`{"file_ids":[],"folder_id":null}` | Yes |
+| **POST** | `/api/drive/batch/download` | 打包下载：返回 zip 流（重名文件自动加序号） | Yes |
+
+### 操作日志 (Activity Log)
+
+| Method | Endpoint | Description | Auth Required |
+| :--- | :--- | :--- | :---: |
+| **GET** | `/api/activities?limit=50` | 当前用户的操作动态（上传/秒传/分片/重命名/移动/删除/还原/分享/版本等） | Yes |
+
+### 回收站自动清理 (Trash Auto-Cleanup)
+
+无独立接口。服务启动时立即执行一次，之后每小时扫描一次：**删除时间超过 30 天**的文件与文件夹会被彻底删除，物理对象按引用计数清理并回收配额。保留期见 `service.TrashRetention`。

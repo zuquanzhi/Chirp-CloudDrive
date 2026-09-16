@@ -10,10 +10,16 @@ import (
 // FolderService handles pure folder CRUD (no trash orchestration — see TrashService).
 type FolderService struct {
 	folderRepo domain.FolderRepository
+	activity   *ActivityRecorder
 }
 
 func NewFolderService(folderRepo domain.FolderRepository) *FolderService {
 	return &FolderService{folderRepo: folderRepo}
+}
+
+// SetActivityRecorder attaches the activity log recorder (optional).
+func (s *FolderService) SetActivityRecorder(rec *ActivityRecorder) {
+	s.activity = rec
 }
 
 // List returns the non-deleted child folders of parentID (nil = drive root).
@@ -41,6 +47,7 @@ func (s *FolderService) Create(ctx context.Context, ownerID int64, name string, 
 	if err := s.folderRepo.Create(ctx, f); err != nil {
 		return nil, err
 	}
+	s.activity.Log(ctx, ownerID, domain.ActivityFolderCreate, "folder", f.ID, name, "")
 	return f, nil
 }
 
@@ -53,10 +60,12 @@ func (s *FolderService) Rename(ctx context.Context, ownerID, folderID int64, nam
 	if err != nil {
 		return nil, err
 	}
+	old := f.Name
 	f.Name = name
 	if err := s.folderRepo.Update(ctx, f); err != nil {
 		return nil, err
 	}
+	s.activity.Log(ctx, ownerID, domain.ActivityFolderRename, "folder", f.ID, name, "原名称: "+old)
 	return f, nil
 }
 
@@ -94,6 +103,7 @@ func (s *FolderService) Move(ctx context.Context, ownerID, folderID int64, newPa
 	if err := s.folderRepo.Update(ctx, f); err != nil {
 		return nil, err
 	}
+	s.activity.Log(ctx, ownerID, domain.ActivityFolderMove, "folder", f.ID, f.Name, "")
 	return f, nil
 }
 

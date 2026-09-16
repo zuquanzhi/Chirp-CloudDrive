@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"sort"
 	"strings"
 	"time"
 
@@ -115,6 +116,16 @@ func (r *fakeFolderRepo) HardDelete(_ context.Context, id int64) error {
 	return nil
 }
 
+func (r *fakeFolderRepo) ListDeletedBefore(_ context.Context, cutoff time.Time) ([]domain.Folder, error) {
+	out := make([]domain.Folder, 0)
+	for _, f := range r.folders {
+		if f.DeletedAt != nil && f.DeletedAt.Before(cutoff) {
+			out = append(out, *f)
+		}
+	}
+	return out, nil
+}
+
 // ---- fake ResourceRepository ----
 
 type fakeResourceRepo struct {
@@ -172,7 +183,7 @@ func (r *fakeResourceRepo) GetByHash(_ context.Context, hash string) ([]domain.R
 func (r *fakeResourceRepo) ListByFolder(_ context.Context, ownerID int64, folderID *int64, search string) ([]domain.Resource, error) {
 	out := make([]domain.Resource, 0)
 	for _, res := range r.resources {
-		if res.OwnerID == nil || *res.OwnerID != ownerID || res.DeletedAt != nil {
+		if res.OwnerID == nil || *res.OwnerID != ownerID || res.DeletedAt != nil || !res.IsLatest {
 			continue
 		}
 		if !ptrEqual(res.FolderID, folderID) {
@@ -262,6 +273,102 @@ func (r *fakeResourceRepo) HardDeleteByFolder(_ context.Context, folderID int64)
 		}
 	}
 	return nil
+}
+
+func (r *fakeResourceRepo) CountByFilename(_ context.Context, filename string) (int, error) {
+	n := 0
+	for _, res := range r.resources {
+		if res.Filename == filename {
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (r *fakeResourceRepo) FindByHash(_ context.Context, hash string) (*domain.Resource, error) {
+	for _, res := range r.resources {
+		if res.FileHash == hash && res.DeletedAt == nil {
+			cp := *res
+			return &cp, nil
+		}
+	}
+	return nil, nil
+}
+
+func (r *fakeResourceRepo) GetLatestByName(_ context.Context, ownerID int64, folderID *int64, name string) (*domain.Resource, error) {
+	for _, res := range r.resources {
+		if res.OwnerID == nil || *res.OwnerID != ownerID || res.DeletedAt != nil || !res.IsLatest {
+			continue
+		}
+		if res.OriginalName == name && ptrEqual(res.FolderID, folderID) {
+			cp := *res
+			return &cp, nil
+		}
+	}
+	return nil, nil
+}
+
+func (r *fakeResourceRepo) SetLatest(_ context.Context, id int64, latest bool) error {
+	if res, ok := r.resources[id]; ok {
+		res.IsLatest = latest
+	}
+	return nil
+}
+
+func (r *fakeResourceRepo) SetVersionGroup(_ context.Context, id int64, group string) error {
+	if res, ok := r.resources[id]; ok {
+		res.VersionGroup = group
+	}
+	return nil
+}
+
+func (r *fakeResourceRepo) ListVersions(_ context.Context, group string) ([]domain.Resource, error) {
+	out := make([]domain.Resource, 0)
+	for _, res := range r.resources {
+		if res.VersionGroup == group && group != "" {
+			out = append(out, *res)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Version > out[j].Version })
+	return out, nil
+}
+
+func (r *fakeResourceRepo) SoftDeleteByGroup(_ context.Context, group string) error {
+	now := time.Now()
+	for _, res := range r.resources {
+		if res.VersionGroup == group && group != "" && res.DeletedAt == nil {
+			res.DeletedAt = &now
+		}
+	}
+	return nil
+}
+
+func (r *fakeResourceRepo) RestoreByGroup(_ context.Context, group string) error {
+	for _, res := range r.resources {
+		if res.VersionGroup == group && group != "" {
+			res.DeletedAt = nil
+		}
+	}
+	return nil
+}
+
+func (r *fakeResourceRepo) HardDeleteByGroup(_ context.Context, group string) error {
+	for id, res := range r.resources {
+		if res.VersionGroup == group && group != "" {
+			delete(r.resources, id)
+		}
+	}
+	return nil
+}
+
+func (r *fakeResourceRepo) ListDeletedBefore(_ context.Context, cutoff time.Time) ([]domain.Resource, error) {
+	out := make([]domain.Resource, 0)
+	for _, res := range r.resources {
+		if res.DeletedAt != nil && res.DeletedAt.Before(cutoff) {
+			out = append(out, *res)
+		}
+	}
+	return out, nil
 }
 
 // ---- fake UserRepository ----
