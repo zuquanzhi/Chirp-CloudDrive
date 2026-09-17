@@ -229,9 +229,11 @@ export default function DrivePage() {
   )
 
   const handleUploadInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const list = e.target.files
+    // Copy the FileList before clearing the input. Some browsers invalidate the
+    // live FileList when the input value is reset for the next selection.
+    const files = e.target.files ? Array.from(e.target.files) : []
     e.target.value = ''
-    if (list) uploadFiles(list)
+    if (files.length > 0) uploadFiles(files)
   }
 
   const handleRename = async () => {
